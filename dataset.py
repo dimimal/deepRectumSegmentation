@@ -9,17 +9,44 @@ import torch
 from torch.utils.data import Dataset
 from utils import load_data
 
+np.random.seed(0)
+
 class BaseData(Dataset):
 
     """Docstring for Dataset. """
 
-    def __init__(self, image_path_CT, image_path_MV, mask_path_CT, mask_path_MV, validation_patients=7, train=True, only_mv=True):
+    def __init__(
+        self,
+        image_path_CT,
+        image_path_MV,
+        mask_path_CT,
+        mask_path_MV,
+        train_patients=1,
+        validation_patients=7,
+        test_patients=1,
+        train=True,
+        active_learning=False,
+        only_mv=True,
+    ):
         self.image_path_CT = image_path_CT
         self.mask_path_CT = mask_path_CT
         self.image_path_MV = image_path_MV
         self.mask_path_MV = mask_path_MV
         self.train = train
+        self.n_train_patients = train_patients
+        self.n_val_patients = validation_patients
+        self.n_test_patients = test_patients
         self.scale = 1
+
+
+        # Keep the paths of images in lists below
+        # splitted across patients
+        self.train_patients = []
+        self.val_patients = []
+        self.test_patients = []
+
+        self.train_ids = []
+        self.val_ids = []
 
         # TODO Now its working only with MVCT scans
         if only_mv:
@@ -28,80 +55,69 @@ class BaseData(Dataset):
             self.image_path_MV = (os.sep).join(self.image_path_MV.split(os.sep)[:-3])
             self.mask_path_MV = (os.sep).join(self.mask_path_MV.split(os.sep)[:-3])
         else:
-            # TODO add this
+            # TODO add this when I will introduce CT planned as well
             pass
 
         # TODO Now I have one patient only.... Consider with more patients. I should split along to patients next time
         # Keep the patient's visits here in daily mvct!
 
         # TODO I havent checked if this works for CT!
+        # Add all the patient IDs here! It works as a buffer also!
         self.patient_id = {}
         # Keep the patient folder codes in self.patient_id
         for image in self.images_mv:
             id_ = image.split(os.sep)[-3]
-
             if id_ not in self.patient_id.keys():
                 key = id_
                 self.patient_id[key] = []
             self.patient_id[key].append(image)
 
-        self.train_patients = []
-        self.val_patients = []
 
-        print(self.patient_id)
+        # Get the testing patient and drop from patient id
+        keys = [i for i in self.patient_id.keys()]
+        for i in range(self.n_test_patients):
+            key = np.random.choice(keys)
+            index = keys.index(key)
+            self.test_patients.extend(self.patient_id[key])
+            del self.patient_id[key]
+            keys.pop(index)
+
+        # Select the test patient ids first!
         i = 0
         for key, values in self.patient_id.items():
-            if i < validation_patients:
+            if i < train_patients:
                 self.train_patients.extend(values)
+                self.train_ids.append(key)
             else:
                 self.val_patients.extend(values)
+                self.val_ids.append(key)
             i += 1
-        print(self.train_patients)
 
         # TODO Add also testing phase!!!
-        # self.train_patients = self.patient_id[:validation_patients]
-        # self.val_patients = self.patient_id[validation_patients:]
-
-        # TODO Fix this!
-        # self.images = load_data(self.image_path)
-        # self.masks = load_data(self.mask_path)
-        if self.train:
-            self.data_imgs, self.data_masks = self.get_pairs(self.train_patients)
-            # Keep only the images with annotations !!
-            print('Train')
-            print(len(self.data_imgs), len(self.data_masks))
-            self.get_annotated_pairs()
-            print(len(self.data_imgs), len(self.data_masks))
-            # print(self.data_imgs)
-            sys.exit(-1)
-        else:
-            self.data_imgs, self.data_masks = self.get_pairs(self.val_patients)
-
-        print(len(self.data_imgs), len(self.data_masks))
-        assert self.data_imgs != self.data_masks, f'Images and masks should be the same size {len(self.data_imgs)} {len(self.data_masks)}'
-        # TODO Shuffle accross days? patients???
-        logging.info(f'Creating dataset with {len(self.data_imgs)} examples')
+        self.train_imgs, self.train_masks = self.get_pairs(self.train_patients)
+        self.get_annotated_pairs()
+        self.val_imgs, self.val_masks = self.get_pairs(self.val_patients)
+        self.test_imgs, self.test_masks = self.get_pairs(self.test_patients)
 
     def __len__(self):
         return len(self.data_imgs)
 
     def get_annotated_pairs(self):
-        """TODO: Docstring for get_annotated_pairs.
-        :returns: TODO
-
+        """It provides the annotated only data for training
+        For now it works only with the train data
         """
+
         indexes = []
         index = 0
-        for image, mask in zip(self.data_imgs, self.data_masks):
+        for image, mask in zip(self.train_imgs, self.train_masks):
             mask = Image.open(mask)
             if np.sum(mask) == 0:
                 indexes.append(index)
 
         # Remove blank images from training
         for i in indexes:
-            self.data_imgs.pop(i)
-            self.data_masks.pop(i)
-
+            self.train_imgs.pop(i)
+            self.train_masks.pop(i)
 
     def get_pairs(self, image_paths):
         """TODO: Docstring for get_pairs.
@@ -115,26 +131,14 @@ class BaseData(Dataset):
             image_id = image_path.split(os.sep)[-3:]
             # Replace image_data file with mask file
             image_index = image_id[-1]
-            image_index = 'seg_mask_data_' + image_index.lstrip('image_data')
+            image_index = "seg_mask_data_" + image_index.lstrip("image_data")
             image_id[-1] = image_index
             mask_path = os.path.join(self.mask_path_MV, (os.sep).join(image_id))
             data_imgs.append(image_path)
             data_masks.append(mask_path)
 
-        # logging.info('data images {}'.format(data_imgs[0]))
-        # logging.info('mask images {}'.format(data_masks[0]))
         return data_imgs, data_masks
 
-        # print(self.images_mv, self.masks_mv)
-        # for file, msk_file in zip(self.images_mv, self.masks_mv):
-        #     print(file, msk_file)
-            # print(file.split(os.sep)[-2].split('_')[0])
-
-            # sys.exit(0)
-            # if file.split(os.sep)[-2].split('_')[0] in ids:
-            #     data_imgs.append(file)
-            #     data_masks.append(msk_file)
-        # return data_imgs, data_masks
 
     @classmethod
     def preprocess(cls, pil_img, scale):
@@ -152,22 +156,54 @@ class BaseData(Dataset):
 
         return img_trans
 
+    def setDataset(self, option='train'):
+        """TODO: Docstring for setDataset.
+        :returns: TODO
+
+        """
+        if option == 'train':
+            self.data_imgs = self.train_imgs
+            self.data_masks = self.train_masks
+        elif option == 'val':
+            self.data_imgs = self.val_imgs
+            self.data_masks = self.val_masks
+        elif option == 'test':
+            self.data_imgs = self.test_imgs
+            self.data_masks = self.test_masks
+        else:
+            raise Exception('Uknown parameter {}'.format(option))
+        return self
+
     def __getitem__(self, i):
         img_file = self.data_imgs[i]
         mask_file = self.data_masks[i]
-        # print(i)
-        # print(len(img_file), len(mask_file))
-        # assert len(mask_file) == 1, \
-        #     f'Either no mask or multiple masks found for the ID {i}: {mask_file}'
-        # assert len(img_file) == 1, \
-        #     f'Either no image or multiple images found for the ID {i}: {img_file}'
         mask = Image.open(mask_file)
         img = Image.open(img_file)
 
-        assert img.size == mask.size, \
-            f'Image and mask {idx} should be the same size, but are {img.size} and {mask.size}'
+        assert (
+            img.size == mask.size
+        ), f"Image and mask {i} should be the same size, but are {img.size} and {mask.size}"
 
         img = self.preprocess(img, self.scale)
         mask = self.preprocess(mask, self.scale)
 
-        return {'image': torch.from_numpy(img), 'mask': torch.from_numpy(mask)}
+        return {"image": torch.from_numpy(img), "mask": torch.from_numpy(mask)}
+
+    def create_next_patient(self):
+        """TODO: Docstring for function.
+        """
+
+        keys = [i for i in self.patient_id.keys()]
+        key = keys.pop()
+        self.image_infer = self.patient_id[key]
+        del self.patient_id[key]
+        self.image_infer, self.mask_infer = self.get_pairs(self.image_infer)
+        for image, mask in zip(self.image_infer, self.mask_infer):
+            self.val_imgs.remove(image)
+            self.val_masks.remove(mask)
+
+    def infer_patient(self):
+        """This is used to infer the next patient obtained from the validation
+
+        """
+        self.data_imgs, self.data_masks = self.image_infer,  self.mask_infer
