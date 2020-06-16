@@ -15,7 +15,65 @@ from scipy import io
 import cv2
 import numpy as np
 from skimage import exposure
+from PIL import Image
 import matplotlib.pyplot as plt
+
+
+def get_annotated_pairs(images, masks):
+    """It provides the annotated only data for training
+    For now it works only with the train data
+    """
+
+    indexes = []
+    index = 0
+    for image, mask in zip(images, masks):
+        mask = Image.open(mask)
+        if np.sum(mask) == 0:
+            indexes.append(index)
+
+    # Remove blank images from training
+    for i in indexes:
+        images.pop(i)
+        masks.pop(i)
+
+def get_annotated_pairs(images, masks):
+    """It provides the annotated only data for training
+    For now it works only with the train data
+    """
+
+    indexes = []
+    index = 0
+    for image, mask in zip(images, masks):
+        mask = Image.open(mask)
+        if np.sum(mask) == 0:
+            indexes.append(index)
+
+    # Remove blank images from training
+    for i in indexes:
+        images.pop(i)
+        masks.pop(i)
+    return images, masks
+
+def get_pairs(image_paths, dir_masks):
+        """TODO: Docstring for get_pairs.
+        :returns: TODO
+
+        """
+        # TODO it should be generalized for CT as well...
+        data_imgs = []
+        data_masks = []
+        for image_path in image_paths:
+            image_id = image_path.split(os.sep)[-3:]
+            # Replace image_data file with mask file
+            image_index = image_id[-1]
+            image_index = "seg_mask_data_" + image_index.lstrip("image_data")
+            image_id[-1] = image_index
+            mask_path = os.path.join(dir_masks, (os.sep).join(image_id))
+            data_imgs.append(image_path)
+            data_masks.append(mask_path)
+
+        return data_imgs, data_masks
+
 
 
 def export_images(
@@ -65,10 +123,6 @@ def export_images(
 
         mvct_image = io.loadmat(image_p)[keys["image"]]
         mvct_convhull = io.loadmat(mask_p)[keys["mask"]]
-        # print(np.unique(mvct_image))
-        # print(np.unique(mvct_convhull))
-        # print(mvct_image.min(), mvct_image.max())
-        # sys.exit(-1)
         depth_image = mvct_image.shape[-1]
 
         # print(depth_image)
