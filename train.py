@@ -28,7 +28,7 @@ dir_masks_MV = (
     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
 )
 
-dir_checkpoint = './Checkpoints'
+dir_checkpoint = "./Checkpoints"
 
 
 def train_network(
@@ -42,17 +42,22 @@ def train_network(
     img_scale=1.0,
 ):
 
-    dataset = BaseData(dir_images_CT, dir_images_MV, dir_masks_CT, dir_masks_MV,
+    dataset = BaseData(
+        dir_images_CT,
+        dir_images_MV,
+        dir_masks_CT,
+        dir_masks_MV,
         train_patients=1,
         validation_patients=8,
         test_patients=1,
         train=True,
-        active_learning=False)
+        active_learning=False,
+    )
 
     # TODO This should be change during Learning!
-    n_train = len(dataset.setDataset(option='train'))
-    n_val = len(dataset.setDataset(option='val'))
-    n_test = len(dataset.setDataset(option='test'))
+    n_train = len(dataset.setDataset(option="train"))
+    n_val = len(dataset.setDataset(option="val"))
+    n_test = len(dataset.setDataset(option="test"))
 
     train_loader = DataLoader(
         train_dataset,
@@ -64,8 +69,8 @@ def train_network(
 
     n_train = len(train_dataset)
     print(n_train)
-    validation_dataset = dataset.setDataset(option='val')
-    test_dataset = dataset.setDataset(option='test')
+    validation_dataset = dataset.setDataset(option="val")
+    test_dataset = dataset.setDataset(option="test")
     # validation_dataset = BaseData(
     #     dir_images_CT, dir_images_MV, dir_masks_CT, dir_masks_MV, train=False
     # )
@@ -182,6 +187,7 @@ def train_network(
 
     writer.close()
 
+
 def infer_patient(net, loader, device, out_path):
     """This is for the active learning part. Infer the next batch (patient)
     of images and save the predictions to a specdified folder and use them as masks in
@@ -214,8 +220,8 @@ def infer_patient(net, loader, device, out_path):
     net.train()
     return tot / n_val
 
-
     pass
+
 
 def eval_net(net, loader, device):
     """Evaluation without the densecrf with the dice coefficient"""
@@ -282,8 +288,8 @@ def main():
     try:
         train_network(
             net=net,
-            epochs=10,  # args.epochs,
-            batch_size=1,  # args.batchsize,
+            epochs=20,  # args.epochs,
+            batch_size=32,  # args.batchsize,
             lr=0.0001,  # args.lr,
             device=device,
             img_scale=1,  # args.scale,

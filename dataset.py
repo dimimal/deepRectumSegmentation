@@ -8,6 +8,10 @@ import glob
 import torch
 from torch.utils.data import Dataset
 from utils import load_data
+from torchvision import transforms
+from scipy import ndimage
+import matplotlib.pyplot as plt
+import cv2
 
 np.random.seed(0)
 
@@ -15,83 +19,15 @@ class BaseData(Dataset):
 
     """Docstring for Dataset. """
 
-    def __init__(
-        self,
-        images,
-        masks
-    ):
+    def __init__(self, images, masks, augmentation=True, crop=True, left=200, top=250, crop_size=128):
         self.data_imgs = images
         self.data_masks = masks
         self.scale = 1
-        # self.image_path_CT = image_path_CT
-        # self.mask_path_CT = mask_path_CT
-        # self.image_path_MV = image_path_MV
-        # self.mask_path_MV = mask_path_MV
-        # self.train = train
-        # self.n_train_patients = train_patients
-        # self.n_val_patients = validation_patients
-        # self.n_test_patients = test_patients
-
-
-        # # Keep the paths of images in lists below
-        # # splitted across patients
-        # self.train_patients = []
-        # self.val_patients = []
-        # self.test_patients = []
-
-        # self.train_ids = []
-        # self.val_ids = []
-
-        # TODO Now its working only with MVCT scans
-        # if only_mv:
-        #     self.images_mv = load_data(self.image_path_MV)
-        #     self.masks_mv = load_data(self.mask_path_MV)
-        #     self.image_path_MV = (os.sep).join(self.image_path_MV.split(os.sep)[:-3])
-        #     self.mask_path_MV = (os.sep).join(self.mask_path_MV.split(os.sep)[:-3])
-        # else:
-        #     # TODO add this when I will introduce CT planned as well
-        #     pass
-
-        # TODO Now I have one patient only.... Consider with more patients. I should split along to patients next time
-        # Keep the patient's visits here in daily mvct!
-
-        # TODO I havent checked if this works for CT!
-        # Add all the patient IDs here! It works as a buffer also!
-        self.patient_id = {}
-        # Keep the patient folder codes in self.patient_id
-        # for image in self.images_mv:
-        #     id_ = image.split(os.sep)[-3]
-        #     if id_ not in self.patient_id.keys():
-        #         key = id_
-        #         self.patient_id[key] = []
-        #     self.patient_id[key].append(image)
-
-
-        # # Get the testing patient and drop from patient id
-        # keys = [i for i in self.patient_id.keys()]
-        # for i in range(self.N_test_patients):
-        #     key = np.random.choice(keys)
-        #     index = keys.index(key)
-        #     self.test_patients.extend(self.patient_id[key])
-        #     del self.patient_id[key]
-        #     keys.pop(index)
-
-        # # Select the test patient ids first!
-        # i = 0
-        # for key, values in self.patient_id.items():
-        #     if i < train_patients:
-        #         self.train_patients.extend(values)
-        #         self.train_ids.append(key)
-        #     else:
-        #         self.val_patients.extend(values)
-        #         self.val_ids.append(key)
-        #     i += 1
-
-        # # TODO Add also testing phase!!!
-        # self.train_imgs, self.train_masks = self.get_pairs(self.train_patients)
-        # self.get_annotated_pairs()
-        # self.val_imgs, self.val_masks = self.get_pairs(self.val_patients)
-        # self.test_imgs, self.test_masks = self.get_pairs(self.test_patients)
+        self.augmentation = augmentation
+        self.crop = crop
+        self.crop_size = crop_size
+        self.left = left
+        self.top = top
 
     def __len__(self):
         return len(self.data_imgs)
@@ -114,7 +50,7 @@ class BaseData(Dataset):
             self.train_masks.pop(i)
 
     def get_pairs(self, image_paths):
-        """TODO: Docstring for get_pairs.
+        """
         :returns: TODO
 
         """
@@ -133,12 +69,13 @@ class BaseData(Dataset):
 
         return data_imgs, data_masks
 
-
-    @classmethod
-    def preprocess(cls, pil_img, scale):
+    # @classmethod
+    def preprocess(self, pil_img, scale):
         w, h = pil_img.size
 
-        img_nd = np.array(pil_img)
+        if self.crop:
+            pil_img = transforms.functional.crop(pil_img, self.top, self.left, self.crop_size, self.crop_size)
+        img_nd = np.array(pil_img).astype(float)
 
         if len(img_nd.shape) == 2:
             img_nd = np.expand_dims(img_nd, axis=2)
@@ -146,7 +83,7 @@ class BaseData(Dataset):
         # HWC to CHW
         img_trans = img_nd.transpose((2, 0, 1))
         if img_trans.max() > 1:
-            img_trans = img_trans / 255
+            img_trans = img_trans / 255.0
 
         return img_trans
 
@@ -156,17 +93,42 @@ class BaseData(Dataset):
         mask = Image.open(mask_file)
         img = Image.open(img_file)
 
+        img = self.preprocess(img, self.scale)
+        mask = self.preprocess(mask, self.scale)
+
         assert (
             img.size == mask.size
         ), f"Image and mask {i} should be the same size, but are {img.size} and {mask.size}"
 
-        img = self.preprocess(img, self.scale)
-        mask = self.preprocess(mask, self.scale)
+        # Data augmentation
+        if self.augmentation:
+            if np.random.rand() > 0.5:
+                angle = np.random.randint(-10, 10)
 
-        return {"image": torch.from_numpy(img), "mask": torch.from_numpy(mask), "mask_name": mask_file}
+                # transforms.RandomRotation(angle,)
+                # rotation angle in degree
+                img = ndimage.rotate(img, angle, reshape=False, axes=(1, 2))
+                mask = ndimage.rotate(mask, angle, reshape=False, axes=(1, 2))
+
+            if np.random.rand() > 0.5:
+                # Numpy to torch.Tensor
+                # img = torch.from_numpy(img)
+                # mask = torch.from_numpy(mask)
+                # img = transforms.functional.hflip(img)
+                # mask = transforms.functional.hflip(mask)
+                img = np.flip(img, axis=2).copy()
+                mask = np.flip(mask, axis=2).copy()
+                # plt.imsave('current_2.png', img[0])
+                # cv2.imwrite('current.png', img[0])
+
+        if not isinstance(img, torch.Tensor):
+            img = torch.from_numpy(img)
+            mask = torch.from_numpy(mask)
+
+        return {"image": img, "mask": mask, "mask_name": mask_file}
 
     def create_next_patient(self):
-        """TODO: Docstring for function.
+        """Generate the images and masks for the next patient
         """
 
         keys = [i for i in self.patient_id.keys()]
@@ -179,10 +141,19 @@ class BaseData(Dataset):
             self.val_masks.remove(mask)
 
     def augment_set(self, images, masks):
-        """TODO: Docstring for augment_set.
-        :returns: TODO
+        """Takes as input the images and the masks and adds them to the existing
+        dataset lists
 
+        Parameters
+        ----------
+        images: List with the paths of the images
+        masks: List with the paths of the masks
+
+        Returns
+        -------
+        None
         """
+
         self.data_imgs.extend(images)
         self.data_masks.extend(masks)
 
@@ -190,4 +161,4 @@ class BaseData(Dataset):
         """This is used to infer the next patient obtained from the validation
 
         """
-        self.data_imgs, self.data_masks = self.image_infer,  self.mask_infer
+        self.data_imgs, self.data_masks = self.image_infer, self.mask_infer

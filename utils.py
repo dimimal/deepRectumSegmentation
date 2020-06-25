@@ -25,55 +25,46 @@ def get_annotated_pairs(images, masks):
     """
 
     indexes = []
-    index = 0
-    for image, mask in zip(images, masks):
-        mask = Image.open(mask)
+    discard_mask = []
+    discard_img = []
+    for image, name_mask in zip(images, masks):
+        mask = np.array(Image.open(name_mask)).astype(float)
         if np.sum(mask) == 0:
-            indexes.append(index)
+            discard_img.append(image)
+            discard_mask.append(name_mask)
+        # else:
+        #     print('False')
 
     # Remove blank images from training
-    for i in indexes:
-        images.pop(i)
-        masks.pop(i)
+    for img, mask in zip(discard_img, discard_mask):
+        try:
+            images.remove(img)
+            masks.remove(mask)
+        except ValueError:
+            print(mask)
 
-def get_annotated_pairs(images, masks):
-    """It provides the annotated only data for training
-    For now it works only with the train data
-    """
-
-    indexes = []
-    index = 0
-    for image, mask in zip(images, masks):
-        mask = Image.open(mask)
-        if np.sum(mask) == 0:
-            indexes.append(index)
-
-    # Remove blank images from training
-    for i in indexes:
-        images.pop(i)
-        masks.pop(i)
     return images, masks
 
+
 def get_pairs(image_paths, dir_masks):
-        """TODO: Docstring for get_pairs.
+    """TODO: Docstring for get_pairs.
         :returns: TODO
 
         """
-        # TODO it should be generalized for CT as well...
-        data_imgs = []
-        data_masks = []
-        for image_path in image_paths:
-            image_id = image_path.split(os.sep)[-3:]
-            # Replace image_data file with mask file
-            image_index = image_id[-1]
-            image_index = "seg_mask_data_" + image_index.lstrip("image_data")
-            image_id[-1] = image_index
-            mask_path = os.path.join(dir_masks, (os.sep).join(image_id))
-            data_imgs.append(image_path)
-            data_masks.append(mask_path)
+    # TODO it should be generalized for CT as well...
+    data_imgs = []
+    data_masks = []
+    for image_path in image_paths:
+        image_id = image_path.split(os.sep)[-3:]
+        # Replace image_data file with mask file
+        image_index = image_id[-1]
+        image_index = "seg_mask_data_" + image_index.lstrip("image_data")
+        image_id[-1] = image_index
+        mask_path = os.path.join(dir_masks, (os.sep).join(image_id))
+        data_imgs.append(image_path)
+        data_masks.append(mask_path)
 
-        return data_imgs, data_masks
-
+    return data_imgs, data_masks
 
 
 def export_images(
@@ -136,6 +127,9 @@ def export_images(
             processed_img = exposure.equalize_adapthist(
                 mvct_image[:, :, i]
             )  # cv2.convertTo(dst, CV_8U, 1.0/256.0)
+            processed_img = np.where(
+                (processed_img > 20) & (processed_img < 76), 255, processed_img
+            )
             # plt.imshow(exposure.equalize_adapthist(mvct_image[:, :, i]))
             # plt.show()
             if extract == "mvct":
