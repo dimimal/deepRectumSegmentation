@@ -12,10 +12,16 @@ import sys
 import glob
 import re
 from scipy import io
+from torch.functional import F
+from torch import optim
+from torch import nn
+from tqdm import tqdm
 import cv2
 import numpy as np
+import torch
 from skimage import exposure
 from PIL import Image
+from dice_loss import dice_coeff, dice_loss
 import matplotlib.pyplot as plt
 
 
@@ -36,7 +42,7 @@ def get_annotated_pairs(images, masks):
         #     print('False')
 
     # Remove blank images from training
-    for img, mask in zip(discard_img, discard_mask):
+    for img, mask  in zip(discard_img, discard_mask):
         try:
             images.remove(img)
             masks.remove(mask)
@@ -45,26 +51,26 @@ def get_annotated_pairs(images, masks):
 
     return images, masks
 
-
 def get_pairs(image_paths, dir_masks):
-    """TODO: Docstring for get_pairs.
+        """TODO: Docstring for get_pairs.
         :returns: TODO
 
         """
-    # TODO it should be generalized for CT as well...
-    data_imgs = []
-    data_masks = []
-    for image_path in image_paths:
-        image_id = image_path.split(os.sep)[-3:]
-        # Replace image_data file with mask file
-        image_index = image_id[-1]
-        image_index = "seg_mask_data_" + image_index.lstrip("image_data")
-        image_id[-1] = image_index
-        mask_path = os.path.join(dir_masks, (os.sep).join(image_id))
-        data_imgs.append(image_path)
-        data_masks.append(mask_path)
+        # TODO it should be generalized for CT as well...
+        data_imgs = []
+        data_masks = []
+        for image_path in image_paths:
+            image_id = image_path.split(os.sep)[-3:]
+            # Replace image_data file with mask file
+            image_index = image_id[-1]
+            image_index = "seg_mask_data_" + image_index.lstrip("image_data")
+            image_id[-1] = image_index
+            mask_path = os.path.join(dir_masks, (os.sep).join(image_id))
+            data_imgs.append(image_path)
+            data_masks.append(mask_path)
 
-    return data_imgs, data_masks
+        return data_imgs, data_masks
+
 
 
 def export_images(
@@ -125,11 +131,9 @@ def export_images(
             if i > depth_image - 1:
                 continue
             processed_img = exposure.equalize_adapthist(
-                mvct_image[:, :, i]
+                mvct_image[:, :, i], kernel_size=(24,24), clip_limit=0.005
             )  # cv2.convertTo(dst, CV_8U, 1.0/256.0)
-            processed_img = np.where(
-                (processed_img > 20) & (processed_img < 76), 255, processed_img
-            )
+            # processed_img = np.where((processed_img > 20) & (processed_img < 76), 255, processed_img)
             # plt.imshow(exposure.equalize_adapthist(mvct_image[:, :, i]))
             # plt.show()
             if extract == "mvct":
@@ -225,6 +229,70 @@ def rescale_hu_to_pixels(image):
     image = np.where((image >= 10) and (image < 30), linear_ramp(image), image)
     return image
 
+def infer_patient(net, loader, device, out_path):
+    """This is for the active learning part. Infer the next batch (patient)
+    of images and save the predictions to a specdified folder and use them as masks in
+    next training.
+    """
+
+    net.eval()
+    mask_type = torch.float32 if net.n_classes == 1 else torch.long
+    n_val = len(loader)  # the number of batch
+    tot = 0
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    fontScale = 1
+    color = (255)
+    thickness = 1
+
+    all_pred_masks = []
+
+    with tqdm(total=n_val, desc="Inference round", unit="batch", leave=False) as pbar:
+        for batch in loader:
+            imgs, true_masks, mask_names = batch["image"], batch["mask"], batch["mask_name"]
+            imgs = imgs.to(device=device, dtype=torch.float32)
+            true_masks = true_masks.to(device=device, dtype=mask_type)
+
+            masks_ids = []
+            for path in mask_names:
+                mask_id = (os.sep).join(path.split(os.sep)[-3:])
+                masks_ids.append(os.path.join(out_path, mask_id))
+
+            with torch.no_grad():
+                mask_pred = net(imgs)
+
+            # if net.n_classes > 1:
+            #     tot += F.cross_entropy(mask_pred, true_masks).item()
+            # else:
+            pred = F.softmax(mask_pred, dim=1)
+            dsc_score = dice_coeff(pred, true_masks).item()
+            tot += dsc_score
+            pred = torch.argmax(pred, dim=1).float()
+            pbar.update()
+
+            imgs = imgs.squeeze(1)
+            pred = pred.squeeze(0)
+            pred = pred.cpu().numpy()
+            imgs = imgs.cpu().numpy()
+            # print(imgs.shape)
+
+            # Save the predicted masks
+            for index, path in enumerate(masks_ids):
+                root_path = (os.sep).join(path.split(os.sep)[:-1])
+                if not os.path.exists(root_path):
+                    os.makedirs(root_path)
+                img = np.clip(imgs[index]*255, 0, 255).astype(np.uint8)
+                mask = (pred[index]*255).astype(np.uint8)
+
+                # print(img.shape, mask.shape)
+                combined = np.concatenate((img, mask), axis=1)
+                cv2.putText(combined, str(dsc_score), (0, 180), font, fontScale, color, thickness, cv2.LINE_AA)
+                cv2.imwrite(path, combined)
+                # mask.save(path)
+            all_pred_masks.extend(masks_ids)
+
+    net.train()
+    return tot / n_val, all_pred_masks
 
 def load_data(path):
     """Insert the path and it will return the list with all the files listed

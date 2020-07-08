@@ -19,7 +19,7 @@ class BaseData(Dataset):
 
     """Docstring for Dataset. """
 
-    def __init__(self, images, masks, augmentation=True, crop=True, left=200, top=250, crop_size=128):
+    def __init__(self, images, masks, augmentation=False, crop=True, left=145, top=120, crop_size=256):
         self.data_imgs = images
         self.data_masks = masks
         self.scale = 1
@@ -83,7 +83,11 @@ class BaseData(Dataset):
         # HWC to CHW
         img_trans = img_nd.transpose((2, 0, 1))
         if img_trans.max() > 1:
+            # print(type(img_trans))
+            # print("True")
+            # print("img max value before scale {}".format(img_trans.max().item()))
             img_trans = img_trans / 255.0
+            # print("img max value after scale {}".format(img_trans.max().item()))
 
         return img_trans
 
@@ -105,9 +109,10 @@ class BaseData(Dataset):
             if np.random.rand() > 0.5:
                 angle = np.random.randint(-10, 10)
 
-                # transforms.RandomRotation(angle,)
                 # rotation angle in degree
+                # print("img max value before scale {}".format(img.max().item()))
                 img = ndimage.rotate(img, angle, reshape=False, axes=(1, 2))
+                # print("img max value after scale {}".format(img.max().item()))
                 mask = ndimage.rotate(mask, angle, reshape=False, axes=(1, 2))
 
             if np.random.rand() > 0.5:
@@ -116,15 +121,29 @@ class BaseData(Dataset):
                 # mask = torch.from_numpy(mask)
                 # img = transforms.functional.hflip(img)
                 # mask = transforms.functional.hflip(mask)
+                # print("img max value before scale {}".format(img.max().item()))
                 img = np.flip(img, axis=2).copy()
+                # print("img max value after scale {}".format(img.max().item()))
                 mask = np.flip(mask, axis=2).copy()
-                # plt.imsave('current_2.png', img[0])
                 # cv2.imwrite('current.png', img[0])
+        # plt.imsave('image_1.png', img[0])
+        # plt.imsave('mask_1.png', mask[0])
 
+
+        # Make mask one hot with >1 probs
+        # mask = np.expand_dims(mask, axis=1)
+        # labels = np.where(mask>0, 1., 0.)
+        # mask = np.where(mask==0, 1., 0.)
+        # mask = np.concatenate((mask, labels), axis=0)
+
+        # print(mask.shape)
         if not isinstance(img, torch.Tensor):
             img = torch.from_numpy(img)
             mask = torch.from_numpy(mask)
+        # print(mask.shape)
+        mask = mask.squeeze(0)
 
+        # print("Image max: {}, Mask max {}".format(img.max().item(), mask.max().item()))
         return {"image": img, "mask": mask, "mask_name": mask_file}
 
     def create_next_patient(self):
@@ -153,12 +172,6 @@ class BaseData(Dataset):
         -------
         None
         """
-
         self.data_imgs.extend(images)
         self.data_masks.extend(masks)
 
-    def infer_patient(self):
-        """This is used to infer the next patient obtained from the validation
-
-        """
-        self.data_imgs, self.data_masks = self.image_infer, self.mask_infer

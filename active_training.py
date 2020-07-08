@@ -19,6 +19,8 @@ import segmentation_models_pytorch as smp
 from dice_loss import dice_coeff, DiceCoeff, dice_coeff_2
 from utils import load_data, get_annotated_pairs, get_pairs
 
+np.random.seed(0)
+
 # HP
 dir_images_CT = (
     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/images/**/*.png"
