@@ -12,34 +12,36 @@ from unet import UNet
 from torch.utils.tensorboard import SummaryWriter
 from torch.functional import F
 from torch import optim
+import matplotlib.pyplot as plt
 from torch import nn
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from dataset import BaseData
 import segmentation_models_pytorch as smp
 from dice_loss import dice_coeff, dice_loss, iou_metric
-from utils import get_annotated_pairs, get_pairs, load_data, infer_patient
+from utils import get_annotated_pairs, get_pairs, load_data, infer_patient, get_grouped_pairs
 
 np.random.seed(0)
 
-# dir_images_CT = (
-#     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/images/**/*.png"
-# )
-# dir_images_MV = (
-#     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/images/**/**/*.png"
-# )
-# dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/**/*.png"
-# dir_masks_MV = (
-#     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
-# )
-dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/images/**/**/*.png"
-dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/mask/**/**/*.png"
+dir_images_CT = (
+    "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/images/**/*.png"
+)
+dir_images_MV = (
+    "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/images/**/**/*.png"
+)
+dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/**/*.png"
+dir_masks_MV = (
+    "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
+)
+dir_out_masks = "/home/dimitris/SOTON_COURSES/Msc_Thesis/predicted_masks_256"
+# dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/images/**/**/*.png"
+# dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/mask/**/**/*.png"
 
-dir_images_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/images/**/*.png"
+# dir_images_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/images/**/*.png"
 # dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/images/**/**/*.png"
-dir_masks_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/mask/**/*.png"
+# dir_masks_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/mask/**/*.png"
 # dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/mask/**/**/*.png"
-dir_out_masks = "/home/dimitris/SOTON/MSc_Project/predicted_masks_256"
+# dir_out_masks = "/home/dimitris/SOTON/MSc_Project/predicted_masks_256"
 
 
 
@@ -130,21 +132,30 @@ def train_network(
     train_images, train_masks = get_pairs(train_patients, trimmed_masks_MV)
     train_images, train_masks = get_annotated_pairs(train_images, train_masks)
     val_images, val_masks = get_pairs(val_patients, trimmed_masks_MV)
+    val_images, val_masks = get_annotated_pairs(val_images, val_masks)
     test_images, test_masks = get_pairs(test_patients, trimmed_masks_MV)
     test_images, test_masks = get_annotated_pairs(test_images, test_masks)
+    if net.n_channels > 1:
+        train_images, train_masks = get_grouped_pairs(train_images, train_masks)
+        val_images, val_masks = get_grouped_pairs(val_images, val_masks)
+        test_images, test_masks = get_grouped_pairs(test_images, test_masks)
+    # val_images, val_masks = get_pairs(val_patients, trimmed_masks_MV)
+    # test_images, test_masks = get_pairs(test_patients, trimmed_masks_MV)
+    # test_images, test_masks = get_annotated_pairs(test_images, test_masks)
 
     # TODO Add a bias to the testing patient, This is for testing only
     # bias_images = test_images[:150]
     # bias_masks = test_masks[:150]
     # test_images = test_images[150:]
     # test_masks = test_masks[150:]
+        train_dataset = BaseData(train_images, train_masks, augmentation=False)
+        validation_dataset = BaseData(val_images, val_masks, augmentation=False)
+        test_dataset = BaseData(test_images, test_masks, augmentation=False)
 
-    print(len(test_images))
-    train_dataset = BaseData(train_images, train_masks)
-    validation_dataset = BaseData(val_images, val_masks)
-    test_dataset = BaseData(test_images, test_masks)
-    print(len(test_images))
-    # sys.exit(-1)
+    else:
+        train_dataset = BaseData(train_images, train_masks, augmentation=False)
+        validation_dataset = BaseData(val_images, val_masks, augmentation=False)
+        test_dataset = BaseData(test_images, test_masks, augmentation=False)
 
     # TODO Adding test bias
     # train_dataset.augment_set(bias_images, bias_masks)
@@ -209,7 +220,7 @@ def train_network(
     optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
     # optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, "max", patience=2)
+        optimizer, "max", patience=2, verbose=True)
 
     weights = torch.Tensor([0., 10.]).to(device)
     if net.n_classes > 1:
@@ -219,6 +230,7 @@ def train_network(
     else:
         criterion_1 = nn.BCEWithLogitsLoss(pos_weight=weights)
         criterion_2 = dice_loss
+    test_score, _ = infer_patient(net, test_loader, device, dir_out_masks)
     for epoch in range(epochs):
         net.train()
         epoch_loss = 0
@@ -237,6 +249,10 @@ def train_network(
                     f"but loaded images have {imgs.shape[1]} channels. Please check that "
                     "the images are loaded correctly."
                 )
+                # plt.imshow(imgs[0].squeeze().cpu().numpy(), cmap='gray')
+                # plt.show()
+                # plt.imshow(true_masks[0].squeeze().cpu().numpy(), cmap='gray')
+                # plt.show()
 
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 mask_type = torch.float32 if net.n_classes == 1 else torch.long
@@ -254,7 +270,6 @@ def train_network(
                 total_train_iou += train_iou
 
                 writer.add_scalar("Loss/train", loss.item(), global_step)
-
                 pbar.set_postfix(**{"loss (batch)": loss.item()})
 
                 optimizer.zero_grad()
@@ -295,7 +310,7 @@ def train_network(
                 #         writer.add_images(
                 #             "masks/pred", torch.sigmoid(masks_pred) > 0.5, global_step
                 #         )
-
+                break
 
         if save_cp:
             try:
@@ -392,7 +407,7 @@ def main():
     #   - For 1 class and background, use n_classes=1
     #   - For 2 classes, use n_classes=1
     #   - For N > 2 classes, use n_classes=N
-    net = UNet(n_channels=1, n_classes=2, bilinear=True)
+    net = UNet(n_channels=3, n_classes=2, bilinear=True)
     logging.info(
         f"Network:\n"
         f"\t{net.n_channels} input channels\n"

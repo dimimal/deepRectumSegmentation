@@ -141,6 +141,9 @@ def iou_metric(pred, target):
     """
     SMOOTH = 1e-6
     pred = torch.argmax(pred, dim=1)
+    # pred.requires_grad = False
+    pred = pred.detach()
+    # print(pred.requires_grad)
     # print(pred.shape, target.shape)
     # pred = pred.squeeze(1)  # BATCH x 1 x H x W => BATCH x H x W
 
