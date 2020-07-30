@@ -88,7 +88,6 @@ def export_images(
         os.makedirs(out_path)
 
     for image_p, mask_p in zip(image_paths, mask_paths):
-        print(image_p, mask_p)
         if extract == "mvct":
             patient_number = image_p.split(os.sep)[-4]
             patient_day = image_p.split(os.sep)[-2]
@@ -121,8 +120,6 @@ def export_images(
         mvct_convhull = io.loadmat(mask_p)[keys["mask"]]
         depth_image = mvct_image.shape[-1]
 
-        # print(depth_image)
-        # print(mvct_convhull.shape[2])
         for i in range(mvct_convhull.shape[2]):
             # Discard unanntotated images
             # if np.sum(mvct_convhull[:, :, i]) == 0:
@@ -205,13 +202,11 @@ def clean_annotations(images, annotations, trim=True):
 
     return trimmed_images, annotations
 
-
 def linear_ramp(x, slope=0.333333):
     """TODO: Docstring for linear_ramp.
     :returns: TODO
 
     """
-    # TODO Fix this!!!!
     return slope * x
 
 
@@ -250,6 +245,8 @@ def order_images(images):
 def get_grouped_pairs(images, masks, n=3):
     """Gets as input a list of images and masks and returns the
         (n_image) - (1-mask [middle one])
+
+        It works only with n=3
     """
 
     # Save the data in {patient_id: data_name}
@@ -285,13 +282,32 @@ def get_grouped_pairs(images, masks, n=3):
         images = patient_images[key_img]
         masks = patient_masks[key_msk]
 
-        # TODO Fix the offset to get one offset images before later!!
+        # Do the mirroring
+        first_index = get_index(images[0]) - 1
+        last_index = get_index(images[-1]) + 1
+        set_image = images[0].split('.')[0].split('_')
+        first_image = set_image.copy()
+        first_image[-1] = str(first_index)
+        set_image = images[-1].split('.')[0].split('_')
+        last_image = set_image.copy()
+        last_image[-1] = str(last_index)
+        first_image = '_'.join(first_image) + '.png'
+        last_image = '_'.join(last_image) + '.png'
+
+        images.insert(0, first_image)
+        if os.path.exists(last_image):
+            images.append(last_image)
+        else:
+            images.append(first_image)
+
         for i in range(len(images)):
-            # index_ = get_index(images[])
-            mid = i + offset
+            if i == len(masks):
+                mid = -1
+            else:
+                mid = i
             pack = []
 
-            if i+n > len(images)-1:
+            if i+n > len(images):
                 break
 
             for j in range(n):
@@ -303,11 +319,16 @@ def get_grouped_pairs(images, masks, n=3):
                 pack.append(image_name)
 
             grouped_imgs.append(pack)
+
             # Get the middle mask
             mask_name = os.path.join(key_msk, patient_masks[key_msk][mid])
             grouped_msks.append(mask_name)
 
     assert len(grouped_imgs) == len(grouped_msks)
+
+    with open('pairs.txt', 'w') as filehandle:
+        for imgs, mask in zip(grouped_imgs, grouped_msks):
+            filehandle.write('%s || %s\n' % (imgs, mask))
 
     return grouped_imgs, grouped_msks
 
@@ -340,6 +361,7 @@ def infer_patient(net, loader, device, out_path, channels=3):
             for path in mask_names:
                 mask_id = (os.sep).join(path.split(os.sep)[-3:])
                 masks_ids.append(os.path.join(out_path, mask_id))
+
 
             with torch.no_grad():
                 mask_pred = net(imgs)

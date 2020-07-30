@@ -55,8 +55,14 @@ def dice_loss(input, target):
     input is a torch variable of size BatchxnclassesxHxW representing log probabilities for each class
     target is a 1-hot representation of the groundtruth, shoud have same size as the input
     """
+    # print(target.shape)
+    # print(target)
+    # print(target.dtype)
+
+    target = target.type(torch.int64)
     target = F.one_hot(target, 2)
     target = target.permute(0, 3, 1, 2)
+
     assert input.size() == target.size(), "Input sizes must be equal."
     assert input.dim() == 4, "Input must be a 4D Tensor."
     uniques = np.unique(target.cpu().numpy())
@@ -96,19 +102,21 @@ def dice_loss(input, target):
 #     return s / (i + 1)
 
 
-def dice_coeff(pred, target):
+def dice_coeff(pred, target, reduce=True):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     smooth = 1e-8
 
     # MEseure only the FG
+    target = target.type(torch.int64)
     # TODO Expand for 3D Input volumetric data in future!
-    target = F.one_hot(target, 2)
+    target = F.one_hot(target, 2).type(torch.float32)
     target = target.permute(0, 3, 1, 2)
 
     pred = torch.softmax(pred, dim=1)
     pred = (pred>0.5).float()
     # pred = torch.argmax(pred, dim=1)
     num = pred * target  # b,c,h,w--p*g
+    # print(num.shape)
     num = torch.sum(num, dim=3)  # b,c,h
     num = torch.sum(num, dim=2)
 
@@ -131,7 +139,10 @@ def dice_coeff(pred, target):
     # intersection = (m1 * m2).sum().float()
     # dice_score = (2.0 * intersection / (m1.sum() + m2.sum() + smooth))
     # print(dice_score.shape)
-    dice_total = torch.sum(dice_eso) / dice_eso.size(0)  # divide by batch_sz
+    if reduce:
+        dice_total = torch.sum(dice_eso) / dice_eso.size(0)  # divide by batch_sz
+    else:
+        dice_total = dice_eso
     return dice_total
 
 def iou_metric(pred, target):
@@ -141,11 +152,8 @@ def iou_metric(pred, target):
     """
     SMOOTH = 1e-6
     pred = torch.argmax(pred, dim=1)
-    # pred.requires_grad = False
-    pred = pred.detach()
-    # print(pred.requires_grad)
-    # print(pred.shape, target.shape)
-    # pred = pred.squeeze(1)  # BATCH x 1 x H x W => BATCH x H x W
+    pred = pred.type(torch.int64).detach().requires_grad_(False)
+    target = target.type(torch.int64)
 
     intersection = (pred & target).float().sum((1, 2))  # Will be zero if Truth=0 or Prediction=0
     union = (pred | target).float().sum((1, 2))         # Will be zzero if both are 0

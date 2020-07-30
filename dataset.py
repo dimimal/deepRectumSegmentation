@@ -137,6 +137,7 @@ class BaseData(Dataset):
         # print(mask.shape)
         mask = mask.squeeze(0)
 
+        print(img_file, mask_file)
         # print("Image max: {}, Mask max {}".format(img.max().item(), mask.max().item()))
         return {"image": img, "mask": mask, "mask_name": mask_file}
 

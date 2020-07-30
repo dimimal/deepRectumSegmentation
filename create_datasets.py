@@ -8,8 +8,8 @@ from utils import load_data, clean_annotations, export_images
 
 CT_PATH = "./data_VT1_P_5828F1K1/**/CT"
 MVCT_PATH = "./data_VT1_P_5828F1K1/**/MVCT"
-OUT_CT_PATH = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_1"
-OUT_MVCT_PATH = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_1"
+OUT_CT_PATH = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_lab"
+OUT_MVCT_PATH = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_lab"
 
 
 def main():

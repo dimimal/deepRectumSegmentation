@@ -14,6 +14,7 @@ from torch.functional import F
 from torch import optim
 import matplotlib.pyplot as plt
 from torch import nn
+from kornia.losses import TverskyLoss
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from dataset import BaseData
@@ -33,7 +34,6 @@ dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/*
 dir_masks_MV = (
     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
 )
-dir_out_masks = "/home/dimitris/SOTON_COURSES/Msc_Thesis/predicted_masks_256"
 # dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/images/**/**/*.png"
 # dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/mask/**/**/*.png"
 
@@ -41,13 +41,11 @@ dir_out_masks = "/home/dimitris/SOTON_COURSES/Msc_Thesis/predicted_masks_256"
 # dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/images/**/**/*.png"
 # dir_masks_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/mask/**/*.png"
 # dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/mask/**/**/*.png"
-# dir_out_masks = "/home/dimitris/SOTON/MSc_Project/predicted_masks_256"
-
-
+# dir_out_masks = "/home/dimitris/SOTON/MSc_Project/predicted_masks_256_3_channels"
 
 N_test_patients = 1
 N_val_patients = 1
-N_train_patients = 3
+N_train_patients = 5
 
 dir_checkpoint = "./Checkpoints"
 
@@ -66,6 +64,7 @@ def train_network(
     # Put all the train val test scores here for each epoch
     scores = {}
     scores['train'] = []
+    scores['train_iou'] = []
     scores['val'] = []
     scores['test'] = []
 
@@ -136,9 +135,10 @@ def train_network(
     test_images, test_masks = get_pairs(test_patients, trimmed_masks_MV)
     test_images, test_masks = get_annotated_pairs(test_images, test_masks)
     if net.n_channels > 1:
-        train_images, train_masks = get_grouped_pairs(train_images, train_masks)
-        val_images, val_masks = get_grouped_pairs(val_images, val_masks)
-        test_images, test_masks = get_grouped_pairs(test_images, test_masks)
+        train_images, train_masks = get_grouped_pairs(train_images, train_masks, n=3)
+        val_images, val_masks = get_grouped_pairs(val_images, val_masks, n=3)
+        test_images, test_masks = get_grouped_pairs(test_images, test_masks, n=3)
+
     # val_images, val_masks = get_pairs(val_patients, trimmed_masks_MV)
     # test_images, test_masks = get_pairs(test_patients, trimmed_masks_MV)
     # test_images, test_masks = get_annotated_pairs(test_images, test_masks)
@@ -229,8 +229,8 @@ def train_network(
         criterion_2 = dice_loss
     else:
         criterion_1 = nn.BCEWithLogitsLoss(pos_weight=weights)
-        criterion_2 = dice_loss
-    test_score, _ = infer_patient(net, test_loader, device, dir_out_masks)
+        criterion_2 = TverskyLoss(alpha=0.7, beta=0.3, gamma=2.)
+
     for epoch in range(epochs):
         net.train()
         epoch_loss = 0
@@ -265,7 +265,6 @@ def train_network(
 
                 train_dsc = dice_coeff(masks_pred, true_masks).item()
                 train_iou = iou_metric(masks_pred, true_masks).item()
-                # print(train_dsc)
                 total_train_dice_coeff += train_dsc
                 total_train_iou += train_iou
 
@@ -310,7 +309,7 @@ def train_network(
                 #         writer.add_images(
                 #             "masks/pred", torch.sigmoid(masks_pred) > 0.5, global_step
                 #         )
-                break
+
 
         if save_cp:
             try:
@@ -318,14 +317,14 @@ def train_network(
                 logging.info("Created checkpoint directory")
             except OSError:
                 pass
-            torch.save(net.state_dict(), dir_checkpoint + f"CP_epoch{epoch + 1}.pth")
+            torch.save(net.state_dict(), dir_checkpoint + f"CP_{net.n_channels}_epoch{epoch + 1}.pth")
             logging.info(f"Checkpoint {epoch + 1} saved !")
 
         val_score, val_loss = eval_net(net, val_loader, device)
         scheduler.step(val_score)
         print(f"val score: {val_score}")
         logging.info(f"Validation dice score: {val_score}")
-        # print('Dice {}'.format(total_train_dice_coeff / n_train))
+        print('Dice {}'.format(total_train_dice_coeff / n_train))
         scores['train'].append(total_train_dice_coeff / count)
         scores['train_iou'].append(total_train_iou / count)
         scores['val'].append(val_score)
@@ -337,9 +336,7 @@ def train_network(
         print(f'infer test_score {test_score}')
 
         # Infer the test set
-        # test_score, test_loss = eval_net(net, test_loader, device)
         scores['test'].append(test_score)
-        # losses['test'].append(test_loss)
         logging.info(f"Test Score {test_score}")
 
         train_dsc, _ = infer_patient(net, train_loader, device, 'pred_train_masks_256')
@@ -391,13 +388,15 @@ def eval_net(net, loader, device):
     return tot / count, epoch_loss
 
 
-def main():
+def main(args):
     """TODO: Docstring for main.
     :returns: TODO
 
     """
 
-    logging.basicConfig(filename='logger.log', filemode='w', level=logging.INFO, format="%(levelname)s: %(message)s")
+    log_file = args[1]
+
+    logging.basicConfig(filename=log_file, filemode='w', level=logging.INFO, format="%(levelname)s: %(message)s")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device {device}")
 
@@ -428,7 +427,7 @@ def main():
     try:
         train_network(
             net=net,
-            epochs=20,  # args.epochs,
+            epochs=60,  # args.epochs,
             batch_size=8,  # args.batchsize,
             lr=0.0001,  # args.lr,
             device=device,
@@ -445,4 +444,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv)
