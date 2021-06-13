@@ -13,10 +13,6 @@ OUT_MVCT_PATH = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_lab"
 
 
 def main():
-    """Main function
-    :arg1: TODO
-    :returns: TODO
-    """
     print(os.path.exists(MVCT_PATH))
     mvct_images_paths = sorted(glob.glob(MVCT_PATH + "/**/imageT*"))
     mvct_convhull_paths = sorted(
