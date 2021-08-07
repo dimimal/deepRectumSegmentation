@@ -16,11 +16,22 @@ import cv2
 
 np.random.seed(0)
 
+
 class BaseData(Dataset):
 
     """Docstring for Dataset. """
 
-    def __init__(self, images, masks, augmentation=False, crop=True, left=145, top=120, crop_size=256, n_channels=3):
+    def __init__(
+        self,
+        images,
+        masks,
+        augmentation=False,
+        crop=True,
+        left=145,
+        top=120,
+        crop_size=256,
+        n_channels=3,
+    ):
         self.data_imgs = images
         self.data_masks = masks
         self.scale = 1
@@ -44,7 +55,9 @@ class BaseData(Dataset):
         w, h = pil_img.size
 
         if self.crop:
-            pil_img = transforms.functional.crop(pil_img, self.top, self.left, self.crop_size, self.crop_size)
+            pil_img = transforms.functional.crop(
+                pil_img, self.top, self.left, self.crop_size, self.crop_size
+            )
         img_nd = np.array(pil_img).astype(float)
 
         if len(img_nd.shape) == 2:
@@ -114,14 +127,13 @@ class BaseData(Dataset):
             # if np.random.rand() > 0.5:
             #     scale = np.random.rand(0.8, 1.2)
 
-                # print("img max value before scale {}".format(img.max().item()))
-                # img = np.flip(img, axis=2).copy()
-                # print("img max value after scale {}".format(img.max().item()))
-                # mask = np.flip(mask, axis=2).copy()
-                # cv2.imwrite('current.png', img[0])
+            # print("img max value before scale {}".format(img.max().item()))
+            # img = np.flip(img, axis=2).copy()
+            # print("img max value after scale {}".format(img.max().item()))
+            # mask = np.flip(mask, axis=2).copy()
+            # cv2.imwrite('current.png', img[0])
         # plt.imsave('image_1.png', img[0])
         # plt.imsave('mask_1.png', mask[0])
-
 
         # Make mask one hot with >1 probs
         # mask = np.expand_dims(mask, axis=1)
@@ -156,4 +168,3 @@ class BaseData(Dataset):
         """
         self.data_imgs.extend(images)
         self.data_masks.extend(masks)
-

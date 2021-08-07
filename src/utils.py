@@ -42,7 +42,7 @@ def get_annotated_pairs(images, masks):
         #     print('False')
 
     # Remove blank images from training
-    for img, mask  in zip(discard_img, discard_mask):
+    for img, mask in zip(discard_img, discard_mask):
         try:
             images.remove(img)
             masks.remove(mask)
@@ -51,26 +51,28 @@ def get_annotated_pairs(images, masks):
 
     return images, masks
 
+
 def get_pairs(image_paths, dir_masks):
-        """
+    """
         :returns: TODO
 
         """
 
-        # TODO it should be generalized for CT as well...
-        data_imgs = []
-        data_masks = []
-        for image_path in image_paths:
-            image_id = image_path.split(os.sep)[-3:]
-            # Replace image_data file with mask file
-            image_index = image_id[-1]
-            image_index = "seg_mask_data_" + image_index.lstrip("image_data")
-            image_id[-1] = image_index
-            mask_path = os.path.join(dir_masks, (os.sep).join(image_id))
-            data_imgs.append(image_path)
-            data_masks.append(mask_path)
+    # TODO it should be generalized for CT as well...
+    data_imgs = []
+    data_masks = []
+    for image_path in image_paths:
+        image_id = image_path.split(os.sep)[-3:]
+        # Replace image_data file with mask file
+        image_index = image_id[-1]
+        image_index = "seg_mask_data_" + image_index.lstrip("image_data")
+        image_id[-1] = image_index
+        mask_path = os.path.join(dir_masks, (os.sep).join(image_id))
+        data_imgs.append(image_path)
+        data_masks.append(mask_path)
 
-        return data_imgs, data_masks
+    return data_imgs, data_masks
+
 
 def export_images(
     image_paths,
@@ -127,7 +129,7 @@ def export_images(
             if i > depth_image - 1:
                 continue
             processed_img = exposure.equalize_adapthist(
-                mvct_image[:, :, i], kernel_size=(24,24), clip_limit=0.005
+                mvct_image[:, :, i], kernel_size=(24, 24), clip_limit=0.005
             )  # cv2.convertTo(dst, CV_8U, 1.0/256.0)
             # processed_img = np.where((processed_img > 20) & (processed_img < 76), 255, processed_img)
             # plt.imshow(exposure.equalize_adapthist(mvct_image[:, :, i]))
@@ -202,6 +204,7 @@ def clean_annotations(images, annotations, trim=True):
 
     return trimmed_images, annotations
 
+
 def linear_ramp(x, slope=0.333333):
     """TODO: Docstring for linear_ramp.
     :returns: TODO
@@ -223,24 +226,27 @@ def rescale_hu_to_pixels(image):
     image = np.where((image >= 10) and (image < 30), linear_ramp(image), image)
     return image
 
+
 def get_index(name):
     """Returns the index from the image path at the end
     """
-    id_index = int(name.split('.')[0].split('_')[-1])
+    id_index = int(name.split(".")[0].split("_")[-1])
     return id_index
+
 
 # Order the images
 def order_images(images):
     order = []
     ordered_list = []
-    prefix = '_'.join(images[0].split('.')[0].split('_')[:-1])
+    prefix = "_".join(images[0].split(".")[0].split("_")[:-1])
     for path in images:
         patient_id = get_index(path)
         order.append(patient_id)
     order = sorted(order)
     for id_ in order:
-        ordered_list.append(prefix+'_'+str(id_)+'.png')
+        ordered_list.append(prefix + "_" + str(id_) + ".png")
     return ordered_list
+
 
 def get_grouped_pairs(images, masks, n=3):
     """Gets as input a list of images and masks and returns the
@@ -285,14 +291,14 @@ def get_grouped_pairs(images, masks, n=3):
         # Do the mirroring
         first_index = get_index(images[0]) - 1
         last_index = get_index(images[-1]) + 1
-        set_image = images[0].split('.')[0].split('_')
+        set_image = images[0].split(".")[0].split("_")
         first_image = set_image.copy()
         first_image[-1] = str(first_index)
-        set_image = images[-1].split('.')[0].split('_')
+        set_image = images[-1].split(".")[0].split("_")
         last_image = set_image.copy()
         last_image[-1] = str(last_index)
-        first_image = '_'.join(first_image) + '.png'
-        last_image = '_'.join(last_image) + '.png'
+        first_image = "_".join(first_image) + ".png"
+        last_image = "_".join(last_image) + ".png"
 
         images.insert(0, first_image)
         if os.path.exists(last_image):
@@ -307,14 +313,14 @@ def get_grouped_pairs(images, masks, n=3):
                 mid = i
             pack = []
 
-            if i+n > len(images):
+            if i + n > len(images):
                 break
 
             for j in range(n):
                 try:
-                    img = images[i+j]
+                    img = images[i + j]
                 except IndexError:
-                    print(i+j, len(images))
+                    print(i + j, len(images))
                 image_name = os.path.join(key_img, img)
                 pack.append(image_name)
 
@@ -326,11 +332,12 @@ def get_grouped_pairs(images, masks, n=3):
 
     assert len(grouped_imgs) == len(grouped_msks)
 
-    with open('pairs.txt', 'w') as filehandle:
+    with open("pairs.txt", "w") as filehandle:
         for imgs, mask in zip(grouped_imgs, grouped_msks):
-            filehandle.write('%s || %s\n' % (imgs, mask))
+            filehandle.write("%s || %s\n" % (imgs, mask))
 
     return grouped_imgs, grouped_msks
+
 
 def infer_patient(net, loader, device, out_path, channels=3):
     """This is for the active learning part. Infer the next batch (patient)
@@ -346,14 +353,18 @@ def infer_patient(net, loader, device, out_path, channels=3):
     mid_chan = channels // 2
     font = cv2.FONT_HERSHEY_SIMPLEX
     fontScale = 1
-    color = (255)
+    color = 255
     thickness = 1
 
     all_pred_masks = []
 
     with tqdm(total=n_val, desc="Inference round", unit="batch", leave=False) as pbar:
         for batch in loader:
-            imgs, true_masks, mask_names = batch["image"], batch["mask"], batch["mask_name"]
+            imgs, true_masks, mask_names = (
+                batch["image"],
+                batch["mask"],
+                batch["mask_name"],
+            )
             imgs = imgs.to(device=device, dtype=torch.float32)
             true_masks = true_masks.to(device=device, dtype=mask_type)
 
@@ -361,7 +372,6 @@ def infer_patient(net, loader, device, out_path, channels=3):
             for path in mask_names:
                 mask_id = (os.sep).join(path.split(os.sep)[-3:])
                 masks_ids.append(os.path.join(out_path, mask_id))
-
 
             with torch.no_grad():
                 mask_pred = net(imgs)
@@ -383,18 +393,28 @@ def infer_patient(net, loader, device, out_path, channels=3):
                 if not os.path.exists(root_path):
                     os.makedirs(root_path)
                 if channels > 1:
-                    img = np.clip(imgs[index][mid_chan]*255, 0, 255).astype(np.uint8)
+                    img = np.clip(imgs[index][mid_chan] * 255, 0, 255).astype(np.uint8)
                 else:
-                    img = np.clip(imgs[index]*255, 0, 255).astype(np.uint8)
-                mask = (pred[index]*255).astype(np.uint8)
+                    img = np.clip(imgs[index] * 255, 0, 255).astype(np.uint8)
+                mask = (pred[index] * 255).astype(np.uint8)
 
                 combined = np.concatenate((img, mask), axis=1)
-                cv2.putText(combined, str(dsc_score), (0, 180), font, fontScale, color, thickness, cv2.LINE_AA)
+                cv2.putText(
+                    combined,
+                    str(dsc_score),
+                    (0, 180),
+                    font,
+                    fontScale,
+                    color,
+                    thickness,
+                    cv2.LINE_AA,
+                )
                 cv2.imwrite(path, combined)
             all_pred_masks.extend(masks_ids)
 
     net.train()
     return tot / n_val, all_pred_masks
+
 
 def vizualize_predictions(image, pred_mask, gt_mask, out_path):
     """With this function we can vizualize the image along with
@@ -405,11 +425,16 @@ def vizualize_predictions(image, pred_mask, gt_mask, out_path):
     :returns: TODO
 
     """
-    img_1, pred_contours, hierarchy = cv2.findContours(pred_mask.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    img_2, gt_contours, hierarchy = cv2.findContours(gt_mask.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    image = cv2.drawContours(image, pred_contours, -1, (255,0,0), 3)
-    image = cv2.drawContours(image, gt_contours, -1, (0,255,0), 3)
+    img_1, pred_contours, hierarchy = cv2.findContours(
+        pred_mask.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+    )
+    img_2, gt_contours, hierarchy = cv2.findContours(
+        gt_mask.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+    )
+    image = cv2.drawContours(image, pred_contours, -1, (255, 0, 0), 3)
+    image = cv2.drawContours(image, gt_contours, -1, (0, 255, 0), 3)
     cv2.imwrite(out_path, image)
+
 
 def load_data(path):
     """Insert the path and it will return the list with all the files listed

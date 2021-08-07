@@ -7,30 +7,28 @@ import glob
 from numpy import *
 from mpl_toolkits.mplot3d import Axes3D
 
-PATH = './data/MVCT_3D/mask/'
+PATH = "./data/MVCT_3D/mask/"
 
 
 def main():
-    data = glob.glob(PATH + '/**/**/*.npy')
+    data = glob.glob(PATH + "/**/**/*.npy")
 
     xx, yy = np.meshgrid(np.linspace(0, 512, 512), np.linspace(0, 512, 512))
     # print(data)
     for i in data:
         fig = plt.figure()
-        ax = fig.gca(projection='3d')
+        ax = fig.gca(projection="3d")
         ax.plot(xx, yy, 0)
         voxel = np.load(i)
-        voxel = voxel / 255.
-        indexes = np.argwhere(voxel==1)
+        voxel = voxel / 255.0
+        indexes = np.argwhere(voxel == 1)
         # print(indexes[0][0])
         # print(voxel.shape)
         for j in range(indexes.shape[0]):
             # z = indexes[j][0]
-            ax.scatter(indexes[j][1], indexes[j][2], indexes[j][0], c='r')
+            ax.scatter(indexes[j][1], indexes[j][2], indexes[j][0], c="r")
         plt.show()
-        a = input('Enter key')
-
-
+        a = input("Enter key")
 
 
 if __name__ == "__main__":

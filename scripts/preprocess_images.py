@@ -1,4 +1,3 @@
-
 import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
@@ -10,6 +9,7 @@ These functions have been retrieved from:
 https://github.com/ugent-korea/pytorch-unet-segmentation/blob/master/src/pre_processing.py
 
 """
+
 
 def add_elastic_transform(image, alpha, sigma, pad_size=30, seed=None):
     """
@@ -29,14 +29,30 @@ def add_elastic_transform(image, alpha, sigma, pad_size=30, seed=None):
     else:
         random_state = np.random.RandomState(seed)
     shape = image.shape
-    dx = gaussian_filter((random_state.rand(*shape) * 2 - 1),
-                         sigma, mode="constant", cval=0) * alpha
-    dy = gaussian_filter((random_state.rand(*shape) * 2 - 1),
-                         sigma, mode="constant", cval=0) * alpha
+    dx = (
+        gaussian_filter(
+            (random_state.rand(*shape) * 2 - 1), sigma, mode="constant", cval=0
+        )
+        * alpha
+    )
+    dy = (
+        gaussian_filter(
+            (random_state.rand(*shape) * 2 - 1), sigma, mode="constant", cval=0
+        )
+        * alpha
+    )
 
     x, y = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]))
-    indices = np.reshape(y+dy, (-1, 1)), np.reshape(x+dx, (-1, 1))
-    return cropping(map_coordinates(image, indices, order=1).reshape(shape), 512, pad_size, pad_size), seed
+    indices = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1))
+    return (
+        cropping(
+            map_coordinates(image, indices, order=1).reshape(shape),
+            512,
+            pad_size,
+            pad_size,
+        ),
+        seed,
+    )
 
 
 def flip(image, option_value):
@@ -94,6 +110,7 @@ def add_uniform_noise(image, low=-10, high=10):
     image = ceil_floor_image(image)
     return noise_img
 
+
 def ceil_floor_image(image):
     """
     Args:
@@ -106,6 +123,7 @@ def ceil_floor_image(image):
     image = image.astype("uint8")
     return image
 
+
 def cropping(image, crop_size, dim1, dim2):
     """crop the image and pad it to in_size
     Args :
@@ -116,5 +134,5 @@ def cropping(image, crop_size, dim1, dim2):
     Return :
         cropped_img: numpy array of cropped image
     """
-    cropped_img = image[dim1:dim1+crop_size, dim2:dim2+crop_size]
+    cropped_img = image[dim1 : dim1 + crop_size, dim2 : dim2 + crop_size]
     return cropped_img

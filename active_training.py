@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+"""
+This script is used to train the U-Net model using the online Training mode
+"""
+
+
 import os
 import logging
 import torch
@@ -18,7 +23,7 @@ import segmentation_models_pytorch as smp
 from dice_loss import dice_coeff, DiceCoeff, dice_coeff_2
 from utils import load_data, get_annotated_pairs, get_pairs
 
-# HP
+# These are the paths being used for training
 # dir_images_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/images/**/*.png"
 # dir_images_MV = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/images/**/**/*.png"
 # dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/**/*.png"
@@ -26,17 +31,10 @@ from utils import load_data, get_annotated_pairs, get_pairs
 # dir_out_masks = "/home/dimitris/SOTON_COURSES/Msc_Thesis/predicted_masks"
 
 
-dir_images_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/images/**/*.png"
-dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/images/**/**/*.png"
-dir_masks_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/mask/**/*.png"
-dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/mask/**/**/*.png"
-dir_out_masks = "/home/dimitris/SOTON/MSc_Project/predicted_masks_128"
-
-dir_checkpoint = './Checkpoints'
+dir_checkpoint = "./Checkpoints"
 N_test_patients = 1
 N_train_patients = 3
 N_val_patients = 1
-
 
 
 def train_network(
@@ -50,23 +48,11 @@ def train_network(
     img_scale=1.0,
 ):
 
-    # dataset = BaseData(dir_images_CT, dir_images_MV, dir_masks_CT, dir_masks_MV,
-    #     train_patients=1,
-    #     validation_patients=8,
-    #     test_patients=1,
-    #     train=True,
-        # active_learning=False)
-
     # Get pair paths
     image_paths = load_data(dir_images_MV)
     mask_paths = load_data(dir_masks_MV)
-    # TODO Do I need that???
-    # dir_images_MV = (os.sep).join(dir_images_MV.split(os.sep)[:-3])
     trimmed_masks_MV = (os.sep).join(dir_masks_MV.split(os.sep)[:-3])
 
-    # TODO The code blocks below should be functioned!
-    # Split train val test
-    # Add all the patient IDs here! It works as a buffer also!
     patient_id = {}
     # Keep the patient folder codes in patient_id
     for image in image_paths:
@@ -117,7 +103,7 @@ def train_network(
     validation_dataset = BaseData(val_images, val_masks)
     test_dataset = BaseData(test_images, test_masks)
 
-    # TODO This should be change during Learning!
+    #
     n_train = len(train_dataset)
     n_val = len(validation_dataset)
     n_test = len(test_dataset)
@@ -149,11 +135,11 @@ def train_network(
         drop_last=True,
     )
 
-
     writer = SummaryWriter(comment=f"LR_{lr}_BS_{batch_size}_SCALE_{img_scale}")
     global_step = 0
 
-    logging.info(f'''Starting training:
+    logging.info(
+        f"""Starting training:
         Epochs:          {epochs}
         Batch size:      {batch_size}
         Learning rate:   {lr}
@@ -162,75 +148,121 @@ def train_network(
         Checkpoints:     {save_cp}
         Device:          {device.type}
         Images scaling:  {img_scale}
-    # ''')
+     """
+    )
 
     optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-4, momentum=0.9)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, "min", patience=2) #if net.n_classes > 1 else "max", patience=2
-    # )
+        optimizer, "min", patience=2
+    )
+
     if net.n_classes > 1:
         criterion = nn.CrossEntropyLoss()
     else:
         criterion = nn.BCEWithLogitsLoss()
 
     round_ = 0
-    # This is the cycle
+    # This is the patient cycle
     while bool(patient_id):
-        print('Start Trraining... \n')
-        print('Train size ', n_train)
-        print('Round ', round_)
-        train_model(net, epochs, device, n_train, train_loader, val_loader, train_dataset, criterion, scheduler, optimizer, writer, global_step, batch_size, save_cp=True)
-        print('Init testing...')
+        print("Start Trraining... \n")
+        print("Train size ", n_train)
+        print("Round ", round_)
+        train_model(
+            net,
+            epochs,
+            device,
+            n_train,
+            train_loader,
+            val_loader,
+            train_dataset,
+            criterion,
+            scheduler,
+            optimizer,
+            writer,
+            global_step,
+            batch_size,
+            save_cp=True,
+        )
+        print("Init testing...")
         test_score = eval_net(net, test_loader, device)
-        print('Test score : {}'.format(test_score))
+        print("Test score : {}".format(test_score))
 
-        print('Train Finish, begin infer on the next batch and retrain!')
+        print("Train Finish, begin infer on the next batch and retrain!")
         # Create the new loader for inference
         key = np.random.choice(keys)
-        print('Iferring Patient id {}'.format(key))
+        print("Iferring Patient id {}".format(key))
         keys.remove(key)
         next_batch = patient_id[key]
         del patient_id[key]
         images, masks = get_pairs(next_batch, trimmed_masks_MV)
         infer_dataset = BaseData(images, masks)
-        infer_loader = DataLoader(infer_dataset, batch_size=1,
+        infer_loader = DataLoader(
+            infer_dataset,
+            batch_size=1,
             shuffle=False,
             num_workers=8,
             pin_memory=True,
-            drop_last=False)
+            drop_last=False,
+        )
         test_score, out_masks = infer_patient(net, infer_loader, device, dir_out_masks)
-        print('Score in the inferring patient {} is {}'.format(key, test_score))
+        print("Score in the inferring patient {} is {}".format(key, test_score))
 
         # print(np.sum([mask.cpu().detach().numpy() for mask in out_masks ]))
         # new_images, new_masks = get_pairs(images, out_masks)
         new_images, new_masks = get_annotated_pairs(images, out_masks)
 
-        print('New annotated masks: ', len(new_masks))
+        print("New annotated masks: ", len(new_masks))
         # add the new images on the train dataset
         train_dataset.augment_set(new_images, new_masks)
         train_loader = DataLoader(
-                train_dataset,
-                batch_size=batch_size,
-                shuffle=True,
-                num_workers=8,
-                pin_memory=True,
-            )
-
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=8,
+            pin_memory=True,
+        )
 
         n_train = len(train_dataset)
         # Next train less epochs!
         epochs = 4
         round_ += 1
-    print('That was the last inferred batch!')
+    print("That was the last inferred batch!")
 
     test_score = eval_net(net, test_loader, device)
-    print('Final Test score : {}'.format(test_score))
+    print("Final Test score : {}".format(test_score))
 
 
-
-def train_model(net, epochs, device, n_train, train_loader, val_loader, train_dataset, criterion, scheduler, optimizer, writer, global_step, batch_size, save_cp=True):
+def train_model(
+    net,
+    epochs,
+    device,
+    n_train,
+    train_loader,
+    val_loader,
+    train_dataset,
+    criterion,
+    scheduler,
+    optimizer,
+    writer,
+    global_step,
+    batch_size,
+    save_cp=True,
+):
     """
-    :returns: TODO
+    :args:
+        net: The network model torch.nn.model
+        epochs: The number of epochs
+        device: Either cpu or gpu
+        n_train: The amount of train samples
+        train_loader: The train torch loader (dataset.Dataloader)
+        val_loader: The val torch loader (dataset.Dataloader)
+        train_dataset: The torch dataset
+        criterion: The loss function
+        scheduler: The scheduler to use during training
+        writer: The logger object
+        global_step: The
+
+    :returns: None
 
     """
     for epoch in range(epochs):
@@ -262,14 +294,12 @@ def train_model(net, epochs, device, n_train, train_loader, val_loader, train_da
 
                 optimizer.zero_grad()
                 loss.backward()
-                # TODO This may cause problems....
-                # nn.utils.clip_grad_value_(net.parameters(), 0.5)
                 optimizer.step()
 
                 pbar.update(imgs.shape[0])
                 global_step += 1
 
-                if global_step % (len(train_dataset) // 1 ) == 0:
+                if global_step % (len(train_dataset) // 1) == 0:
                     for tag, value in net.named_parameters():
                         tag = tag.replace(".", "/")
                         writer.add_histogram(
@@ -310,8 +340,12 @@ def train_model(net, epochs, device, n_train, train_loader, val_loader, train_da
     writer.close()
 
 
+@torch.no_grad()
 def eval_net(net, loader, device):
-    """Evaluation without the densecrf with the dice coefficient"""
+    """Evaluation without the densecrf with the dice coefficient
+
+    """
+
     net.eval()
     mask_type = torch.float32 if net.n_classes == 1 else torch.long
     n_val = len(loader)  # the number of batch
@@ -339,10 +373,6 @@ def eval_net(net, loader, device):
 
 
 def main():
-    """TODO: Docstring for main.
-    :returns: TODO
-
-    """
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -369,15 +399,13 @@ def main():
     #     logging.info(f'Model loaded from {args.load}')
 
     net.to(device=device)
-    # faster convolutions, but more memory
-    # cudnn.benchmark = True
 
     try:
         train_network(
             net=net,
             epochs=40,  # args.epochs,
             batch_size=32,  # args.batchsize,
-            lr=0.001,  # args.lr,
+            lr=0.001,
             device=device,
             img_scale=1,  # args.scale,
             val_percent=1,

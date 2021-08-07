@@ -1,9 +1,14 @@
-#!/usr/bin/env python3
+# !/usr/bin/env python3
+"""
+This is the main script that is used for the training of the U-Net model
+"""
+
 
 import os
 import logging
 import torch
 import math
+import random
 import sys
 import numpy as np
 import json
@@ -20,9 +25,16 @@ from torch.utils.data import DataLoader
 from dataset import BaseData
 import segmentation_models_pytorch as smp
 from dice_loss import dice_coeff, dice_loss, iou_metric
-from utils import get_annotated_pairs, get_pairs, load_data, infer_patient, get_grouped_pairs
+from utils import (
+    get_annotated_pairs,
+    get_pairs,
+    load_data,
+    infer_patient,
+    get_grouped_pairs,
+)
 
 np.random.seed(0)
+random.seed(0)
 
 dir_images_CT = (
     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/images/**/*.png"
@@ -34,6 +46,7 @@ dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/*
 dir_masks_MV = (
     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
 )
+
 # dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/images/**/**/*.png"
 # dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/mask/**/**/*.png"
 
@@ -63,25 +76,22 @@ def train_network(
 
     # Put all the train val test scores here for each epoch
     scores = {}
-    scores['train'] = []
-    scores['train_iou'] = []
-    scores['val'] = []
-    scores['test'] = []
+    scores["train"] = []
+    scores["train_iou"] = []
+    scores["val"] = []
+    scores["test"] = []
 
     losses = {}
-    losses['train'] = []
-    losses['val'] = []
-    losses['test'] = []
+    losses["train"] = []
+    losses["val"] = []
+    losses["test"] = []
 
     # Get pair paths
     image_paths = load_data(dir_images_MV)
     mask_paths = load_data(dir_masks_MV)
 
-    # TODO Do I need that???
-    # dir_images_MV = (os.sep).join(dir_images_MV.split(os.sep)[:-3])
     trimmed_masks_MV = (os.sep).join(dir_masks_MV.split(os.sep)[:-3])
 
-    # TODO The code blocks below should be functioned!
     # Split train val test
     # Add all the patient IDs here! It works as a buffer also!
     patient_id = OrderedDict()
@@ -127,7 +137,6 @@ def train_network(
         del patient_id[key]
         keys.remove(key)
 
-
     train_images, train_masks = get_pairs(train_patients, trimmed_masks_MV)
     train_images, train_masks = get_annotated_pairs(train_images, train_masks)
     val_images, val_masks = get_pairs(val_patients, trimmed_masks_MV)
@@ -139,15 +148,6 @@ def train_network(
         val_images, val_masks = get_grouped_pairs(val_images, val_masks, n=3)
         test_images, test_masks = get_grouped_pairs(test_images, test_masks, n=3)
 
-    # val_images, val_masks = get_pairs(val_patients, trimmed_masks_MV)
-    # test_images, test_masks = get_pairs(test_patients, trimmed_masks_MV)
-    # test_images, test_masks = get_annotated_pairs(test_images, test_masks)
-
-    # TODO Add a bias to the testing patient, This is for testing only
-    # bias_images = test_images[:150]
-    # bias_masks = test_masks[:150]
-    # test_images = test_images[150:]
-    # test_masks = test_masks[150:]
         train_dataset = BaseData(train_images, train_masks, augmentation=False)
         validation_dataset = BaseData(val_images, val_masks, augmentation=False)
         test_dataset = BaseData(test_images, test_masks, augmentation=False)
@@ -157,10 +157,7 @@ def train_network(
         validation_dataset = BaseData(val_images, val_masks, augmentation=False)
         test_dataset = BaseData(test_images, test_masks, augmentation=False)
 
-    # TODO Adding test bias
-    # train_dataset.augment_set(bias_images, bias_masks)
 
-    # TODO This should be change during Learning!
     n_train = len(train_dataset)
     n_val = len(validation_dataset)
     n_test = len(test_dataset)
@@ -173,12 +170,12 @@ def train_network(
         pin_memory=True,
     )
 
-    # validation_dataset = dataset.setDataset(option="val")
-    # test_dataset = dataset.setDataset(option="test")
-    # validation_dataset = BaseData(
-    #     dir_images_CT, dir_images_MV, dir_masks_CT, dir_masks_MV, train=False
-    # )
-    # n_val = int(len(dataset) * val_percent)
+    validation_dataset = dataset.setDataset(option="val")
+    test_dataset = dataset.setDataset(option="test")
+    validation_dataset = BaseData(
+        dir_images_CT, dir_images_MV, dir_masks_CT, dir_masks_MV, train=False
+    )
+
     n_train = len(train_dataset)
     n_val = len(validation_dataset)
     print(n_train)
@@ -206,7 +203,8 @@ def train_network(
     writer = SummaryWriter(comment=f"LR_{lr}_BS_{batch_size}_SCALE_{img_scale}")
     global_step = 0
 
-    logging.info(f'''Starting training:
+    logging.info(
+        f"""Starting training:
         Epochs:          {epochs}
         Batch size:      {batch_size}
         Learning rate:   {lr}
@@ -215,21 +213,23 @@ def train_network(
         Checkpoints:     {save_cp}
         Device:          {device.type}
         Images scaling:  {img_scale}
-    ''')
+    """
+    )
 
     optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
     # optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, "max", patience=2, verbose=True)
+        optimizer, "max", patience=2, verbose=True
+    )
 
-    weights = torch.Tensor([0., 10.]).to(device)
+    weights = torch.Tensor([0.0, 10.0]).to(device)
     if net.n_classes > 1:
         criterion_1 = nn.CrossEntropyLoss(weight=weights)
         # criterion_1 = nn.CrossEntropyLoss()
         criterion_2 = dice_loss
     else:
         criterion_1 = nn.BCEWithLogitsLoss(pos_weight=weights)
-        criterion_2 = TverskyLoss(alpha=0.7, beta=0.3, gamma=2.)
+        criterion_2 = TverskyLoss(alpha=0.7, beta=0.3, gamma=2.0)
 
     for epoch in range(epochs):
         net.train()
@@ -277,39 +277,38 @@ def train_network(
                 optimizer.step()
                 pbar.update(imgs.shape[0])
 
-                # TODO This is for the tensorboard
-                # global_step += 1
-                # if global_step % (len(train_dataset) // (2 * batch_size)) == 0:
-                #     for tag, value in net.named_parameters():
-                #         tag = tag.replace(".", "/")
-                #         writer.add_histogram(
-                #             "weights/" + tag, value.data.cpu().numpy(), global_step
-                #         )
-                #         writer.add_histogram(
-                #             "grads/" + tag, value.grad.data.cpu().numpy(), global_step
-                #         )
-                #     val_score, val_loss = eval_net(net, val_loader, device)
-                #     scheduler.step(val_score)
-                #     print(f"val score: {val_score}")
-                #     logging.info(f"Validation dice score: {val_score}")
-                #     writer.add_scalar(
-                #         "learning_rate", optimizer.param_groups[0]["lr"], global_step
-                #     )
+                # This is for the tensorboard
+                global_step += 1
+                if global_step % (len(train_dataset) // (2 * batch_size)) == 0:
+                    for tag, value in net.named_parameters():
+                        tag = tag.replace(".", "/")
+                        writer.add_histogram(
+                            "weights/" + tag, value.data.cpu().numpy(), global_step
+                        )
+                        writer.add_histogram(
+                            "grads/" + tag, value.grad.data.cpu().numpy(), global_step
+                        )
+                    val_score, val_loss = eval_net(net, val_loader, device)
+                    scheduler.step(val_score)
+                    print(f"val score: {val_score}")
+                    logging.info(f"Validation dice score: {val_score}")
+                    writer.add_scalar(
+                        "learning_rate", optimizer.param_groups[0]["lr"], global_step
+                    )
 
-                #     if net.n_classes > 1:
-                #         logging.info("Validation Loss: {}".format(val_loss))
-                #         writer.add_scalar("Loss/test", val_score, global_step)
-                #     else:
-                #         logging.info("Validation Dice Coeff: {}".format(val_score))
-                #         writer.add_scalar("Dice/test", val_score, global_step)
+                    if net.n_classes > 1:
+                        logging.info("Validation Loss: {}".format(val_loss))
+                        writer.add_scalar("Loss/test", val_score, global_step)
+                    else:
+                        logging.info("Validation Dice Coeff: {}".format(val_score))
+                        writer.add_scalar("Dice/test", val_score, global_step)
 
-                #     writer.add_images("images", imgs, global_step)
-                #     if net.n_classes == 1:
-                #         writer.add_images("masks/true", true_masks, global_step)
-                #         writer.add_images(
-                #             "masks/pred", torch.sigmoid(masks_pred) > 0.5, global_step
-                #         )
-
+                    writer.add_images("images", imgs, global_step)
+                    if net.n_classes == 1:
+                        writer.add_images("masks/true", true_masks, global_step)
+                        writer.add_images(
+                            "masks/pred", torch.sigmoid(masks_pred) > 0.5, global_step
+                        )
 
         if save_cp:
             try:
@@ -317,38 +316,41 @@ def train_network(
                 logging.info("Created checkpoint directory")
             except OSError:
                 pass
-            torch.save(net.state_dict(), dir_checkpoint + f"CP_{net.n_channels}_epoch{epoch + 1}.pth")
+            torch.save(
+                net.state_dict(),
+                dir_checkpoint + f"CP_{net.n_channels}_epoch{epoch + 1}.pth",
+            )
             logging.info(f"Checkpoint {epoch + 1} saved !")
 
         val_score, val_loss = eval_net(net, val_loader, device)
         scheduler.step(val_score)
         print(f"val score: {val_score}")
         logging.info(f"Validation dice score: {val_score}")
-        print('Dice {}'.format(total_train_dice_coeff / n_train))
-        scores['train'].append(total_train_dice_coeff / count)
-        scores['train_iou'].append(total_train_iou / count)
-        scores['val'].append(val_score)
-        losses['train'].append(epoch_loss)
-        losses['val'].append(val_loss)
+        print("Dice {}".format(total_train_dice_coeff / n_train))
+        scores["train"].append(total_train_dice_coeff / count)
+        scores["train_iou"].append(total_train_iou / count)
+        scores["val"].append(val_score)
+        losses["train"].append(epoch_loss)
+        losses["val"].append(val_loss)
 
         logging.info(f"Iou train score {total_train_iou / count}")
         test_score, _ = infer_patient(net, test_loader, device, dir_out_masks)
-        print(f'infer test_score {test_score}')
+        print(f"infer test_score {test_score}")
 
         # Infer the test set
-        scores['test'].append(test_score)
+        scores["test"].append(test_score)
         logging.info(f"Test Score {test_score}")
 
-        train_dsc, _ = infer_patient(net, train_loader, device, 'pred_train_masks_256')
-        logging.info(f'Train DSC accuracy {train_dsc}')
+        train_dsc, _ = infer_patient(net, train_loader, device, "pred_train_masks_256")
+        logging.info(f"Train DSC accuracy {train_dsc}")
         # logging.info(f'Train DSC Loss {train_loss}')
 
     writer.close()
 
-
-    with open('results.json', 'w') as fp:
+    with open("results.json", "w") as fp:
         json.dump(scores, fp)
         json.dump(losses, fp)
+
 
 def eval_net(net, loader, device):
     """Evaluation without the densecrf with the dice coefficient"""
@@ -380,7 +382,7 @@ def eval_net(net, loader, device):
             # pred = torch.argmax(mask_pred, dim=1).float()
             dsc = dice_coeff(mask_pred, true_masks).item()
             if math.isnan(dsc):
-                dsc = 0.
+                dsc = 0.0
             tot += dsc
             pbar.update()
 
@@ -389,14 +391,15 @@ def eval_net(net, loader, device):
 
 
 def main(args):
-    """TODO: Docstring for main.
-    :returns: TODO
-
-    """
 
     log_file = args[1]
 
-    logging.basicConfig(filename=log_file, filemode='w', level=logging.INFO, format="%(levelname)s: %(message)s")
+    logging.basicConfig(
+        filename=log_file,
+        filemode="w",
+        level=logging.INFO,
+        format="%(levelname)s: %(message)s",
+    )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device {device}")
 
@@ -421,8 +424,6 @@ def main(args):
     #     logging.info(f'Model loaded from {args.load}')
 
     net.to(device=device)
-    # faster convolutions, but more memory
-    # cudnn.benchmark = True
 
     try:
         train_network(

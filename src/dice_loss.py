@@ -34,6 +34,7 @@ class DiceCoeff(Function):
 
         return grad_input, grad_target
 
+
 # def dice_loss(input, target):
 #     """TODO: Docstring for dice_loss.
 #     :returns: TODO
@@ -48,7 +49,8 @@ class DiceCoeff(Function):
 #     union = torch.sum(input + target, dims)
 
 #     dsc = 2 * intersection / (union + eps)
-    # return torch.mean(1. - dsc)
+# return torch.mean(1. - dsc)
+
 
 def dice_loss(input, target):
     """
@@ -84,7 +86,7 @@ def dice_loss(input, target):
 
     dice = 2 * (num / (den1 + den2))
     dice_eso = dice[:, 1:]  # we ignore bg dice val, and take the fg
-    dice_total = 1. - (torch.sum(dice_eso) / dice_eso.size(0))  # divide by batch_sz
+    dice_total = 1.0 - (torch.sum(dice_eso) / dice_eso.size(0))  # divide by batch_sz
 
     return dice_total
 
@@ -113,7 +115,7 @@ def dice_coeff(pred, target, reduce=True):
     target = target.permute(0, 3, 1, 2)
 
     pred = torch.softmax(pred, dim=1)
-    pred = (pred>0.5).float()
+    pred = (pred > 0.5).float()
     # pred = torch.argmax(pred, dim=1)
     num = pred * target  # b,c,h,w--p*g
     # print(num.shape)
@@ -145,6 +147,7 @@ def dice_coeff(pred, target, reduce=True):
         dice_total = dice_eso
     return dice_total
 
+
 def iou_metric(pred, target):
     """TODO: Docstring for iou_metric.
     :returns: TODO
@@ -155,8 +158,10 @@ def iou_metric(pred, target):
     pred = pred.type(torch.int64).detach().requires_grad_(False)
     target = target.type(torch.int64)
 
-    intersection = (pred & target).float().sum((1, 2))  # Will be zero if Truth=0 or Prediction=0
-    union = (pred | target).float().sum((1, 2))         # Will be zzero if both are 0
+    intersection = (
+        (pred & target).float().sum((1, 2))
+    )  # Will be zero if Truth=0 or Prediction=0
+    union = (pred | target).float().sum((1, 2))  # Will be zzero if both are 0
     iou = (intersection + SMOOTH) / (union + SMOOTH)
 
     iou = torch.sum(iou) / pred.size(0)
