@@ -33,7 +33,6 @@ For the synthetic data generation please consider to use the source code provide
 <img width="400" src="images/active_2.png">
 </p>
 <div>
-> <br>
 
 ## Test Samples
 <p float="left">
