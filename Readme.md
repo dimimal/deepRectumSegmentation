@@ -30,9 +30,10 @@ For the synthetic data generation please consider to use the source code provide
 
 <div align="center">
 <p>
-<img width="850" src="https://github.com/dimimal/deepRectumSegmentation/images/active_2.png">
+<img width="850" src="images/active_2.png">
 </p>
 <div>
+> <br>
 
 ## Test Samples
 <p float="left">
