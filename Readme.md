@@ -1,6 +1,6 @@
 ## Automatic Rectum Segmentation with Deep Learning
 
-This repo contains the source code of the paper **Deep Rectum Segmentation with Deep Learning**
+This repo contains the source code of the paper **Deep Rectum Segmentation for Image Guided Radiation Therapy with Synthetic Data**
 
 ### Absract
 
@@ -19,22 +19,19 @@ Experimental results demonstrate the excellent performance of the proposed appro
 Create your venv and run pip install -r `requirements.txt`
 
 
-
 ## Synthetic Data Generation
 
 For the synthetic data generation please consider to use the source code provided in this repo:
 
 <a href="https://github.com/mahmoodlab/NucleiSegmentation">Synthetic Generation</a>
 
-This is the code that was used for our CT synthetic image generation
 
 # Results
 
 <div align="center">
 <p>
-<img width="850" src="https://github.com/dimimal/deepRectumSegmentation/images/active_2.png"></a>
+<img width="850" src="https://github.com/dimimal/deepRectumSegmentation/images/active_2.png">
 </p>
-<br>
 <div>
 
 ## Test Samples
@@ -50,7 +47,5 @@ This is the code that was used for our CT synthetic image generation
   <img src="https://github.com/dimimal/deepRectumSegmentation/images/synthetic_1.png" width="200" />
   <img src="https://github.com/dimimal/deepRectumSegmentation/images/synthetic_2.png" width="200" />
   <img src="https://github.com/dimimal/deepRectumSegmentation/images/synthetic_3.png" width="200" />
-  > <img src="/img2.png" width="100" />
-  > <img src="/img3.png" width="100" />
 </p>
 
