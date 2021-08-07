@@ -30,23 +30,23 @@ For the synthetic data generation please consider to use the source code provide
 
 <div align="center">
 <p>
-<img width="850" src="images/active_2.png">
+<img width="400" src="images/active_2.png">
 </p>
 <div>
 > <br>
 
 ## Test Samples
 <p float="left">
-  <img src="https://github.com/dimimal/deepRectumSegmentation/images/seg_mask_data_VT1_U_7FE5C1K1_12_out.png" width="200" />
-  <img src="https://github.com/dimimal/deepRectumSegmentation/images/seg_mask_data_VT1_U_7FE5C1K1_13_out.png" width="200" />
-  <img src="https://github.com/dimimal/deepRectumSegmentation/images/seg_mask_data_VT1_U_7FE5C1K1_16_out.png" width="200" />
+  <img src="images/seg_mask_data_VT1_U_7FE5C1K1_12_out.png" width="200" />
+  <img src="images/seg_mask_data_VT1_U_7FE5C1K1_13_out.png" width="200" />
+  <img src="images/seg_mask_data_VT1_U_7FE5C1K1_16_out.png" width="200" />
 </p>
 
 
 ## Synthetic Images
 <p float="left">
-  <img src="https://github.com/dimimal/deepRectumSegmentation/images/synthetic_1.png" width="200" />
-  <img src="https://github.com/dimimal/deepRectumSegmentation/images/synthetic_2.png" width="200" />
-  <img src="https://github.com/dimimal/deepRectumSegmentation/images/synthetic_3.png" width="200" />
+  <img src="images/synthetic_1.png" width="200" />
+  <img src="images/synthetic_2.png" width="200" />
+  <img src="images/synthetic_3.png" width="200" />
 </p>
 
