@@ -17,3 +17,40 @@ Experimental results demonstrate the excellent performance of the proposed appro
 # Installation
 
 Create your venv and run pip install -r `requirements.txt`
+
+
+
+## Synthetic Data Generation
+
+For the synthetic data generation please consider to use the source code provided in this repo:
+
+<a href="https://github.com/mahmoodlab/NucleiSegmentation">Synthetic Generation</a>
+
+This is the code that was used for our CT synthetic image generation
+
+# Results
+
+<div align="center">
+<p>
+<img width="850" src="https://github.com/dimimal/deepRectumSegmentation/images/active_2.png"></a>
+</p>
+<br>
+<div>
+
+## Test Samples
+<p float="left">
+  <img src="https://github.com/dimimal/deepRectumSegmentation/images/seg_mask_data_VT1_U_7FE5C1K1_12_out.png" width="200" />
+  <img src="https://github.com/dimimal/deepRectumSegmentation/images/seg_mask_data_VT1_U_7FE5C1K1_13_out.png" width="200" />
+  <img src="https://github.com/dimimal/deepRectumSegmentation/images/seg_mask_data_VT1_U_7FE5C1K1_16_out.png" width="200" />
+</p>
+
+
+## Synthetic Images
+<p float="left">
+  <img src="https://github.com/dimimal/deepRectumSegmentation/images/synthetic_1.png" width="200" />
+  <img src="https://github.com/dimimal/deepRectumSegmentation/images/synthetic_2.png" width="200" />
+  <img src="https://github.com/dimimal/deepRectumSegmentation/images/synthetic_3.png" width="200" />
+  > <img src="/img2.png" width="100" />
+  > <img src="/img3.png" width="100" />
+</p>
+
