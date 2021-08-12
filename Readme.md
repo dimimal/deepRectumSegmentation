@@ -1,8 +1,9 @@
 ## Automatic Rectum Segmentation with Deep Learning
 
 This repo contains the source code of the paper **Deep Rectum Segmentation for Image Guided Radiation Therapy with Synthetic Data**
+presented in EUSIPCO 2021 Conference
 
-### Absract
+### Abstract
 
 ```
 Image guidance nowadays is a crucial component for doctors to facilitate the design of the planning radiation therapy dosage.
