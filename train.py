@@ -8,8 +8,7 @@ import sys
 import numpy as np
 import json
 from collections import OrderedDict
-from unet import UNet
-# from torch.utils.tensorboard import SummaryWriter
+from models.unet import UNet
 from torch.functional import F
 from torch import optim
 import matplotlib.pyplot as plt
@@ -17,10 +16,9 @@ from torch import nn
 from kornia.losses import TverskyLoss
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from dataset import BaseData
-# import segmentation_models_pytorch as smp
-from dice_loss import dice_coeff, dice_loss, iou_metric
-from utils import (
+from src.dataset import BaseData
+from src.dice_loss import dice_coeff, dice_loss, iou_metric
+from src.utils import (
     get_annotated_pairs,
     get_pairs,
     load_data,
@@ -29,30 +27,6 @@ from utils import (
 )
 
 np.random.seed(0)
-
-# dir_images_CT = (
-#     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/images/**/*.png"
-# )
-# dir_images_MV = (
-#     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/images/**/**/*.png"
-# )
-# dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/**/*.png"
-# dir_masks_MV = (
-#     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
-# )
-# dir_out_masks = "/home/dimitris/SOTON/Msc_Thesis/Data/predicted_masks_256_1_channels"
-# dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/images/**/**/*.png"
-# dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/mask/**/**/*.png"
-
-# dir_images_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/images/**/*.png"
-# dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/images/**/**/*.png"
-# dir_masks_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/mask/**/*.png"
-# dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/mask/**/**/*.png"
-# dir_out_masks = "/home/dimitris/SOTON/MSc_Project/predicted_masks_256_1_channels"
-
-
-# dir_checkpoint = "./Checkpoints"
-
 
 def train_network(
     net, device, cfg, save_cp=True, img_scale=1.0,

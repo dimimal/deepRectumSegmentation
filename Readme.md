@@ -36,6 +36,11 @@ For the synthetic data generation please consider to use the source code provide
 Place your dataset into folders splitting the images and masks and place the paths in the `train.py` script. Then pass the log file as
 an argument to your script to train your model.
 
+`python train.py configs/cfg_synthetic_5.json`
+
+The active learning process works in a similar way.
+
+`python active_train.py configs/cfg_synthetic_5.json`
 
 
 # Results

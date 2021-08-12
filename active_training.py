@@ -8,7 +8,7 @@ import json
 from PIL import Image
 import numpy as np
 import math
-from unet import UNet
+from models.unet import UNet
 from torch.utils.tensorboard import SummaryWriter
 from torch.functional import F
 from torch import optim
@@ -16,10 +16,9 @@ from torch import nn
 from tqdm import tqdm
 from kornia.losses import TverskyLoss
 from torch.utils.data import DataLoader
-from dataset import BaseData
-import segmentation_models_pytorch as smp
-from dice_loss import dice_coeff, DiceCoeff, dice_loss, iou_metric
-from utils import load_data, get_annotated_pairs, get_pairs, infer_patient, get_grouped_pairs
+from src.dataset import BaseData
+from src.dice_loss import dice_coeff, DiceCoeff, dice_loss, iou_metric
+from src.utils import load_data, get_annotated_pairs, get_pairs, infer_patient, get_grouped_pairs
 
 
 np.random.seed(0)
@@ -127,7 +126,7 @@ def train_network(
     train_images, train_masks = get_annotated_pairs(train_images, train_masks)
     val_images, val_masks = get_pairs(val_patients, trimmed_masks_MV)
     test_images, test_masks = get_pairs(test_patients, trimmed_masks_MV)
-    
+
     if n_channels > 1:
         train_images, train_masks = get_grouped_pairs(train_images, train_masks, n=3)
         val_images, val_masks = get_grouped_pairs(val_images, val_masks, n=3)
@@ -188,7 +187,7 @@ def train_network(
     optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=lr_pen)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, "min", patience=2
-    )  
+    )
 
     if cfg["loss"] == "dsc":
         criterion = dice_loss
@@ -197,7 +196,7 @@ def train_network(
 
     round_ = 0
     # test_score, out_masks = infer_patient(net, val_loader, device, dir_out_masks, mode='active', channels=n_channels)
-    
+
     # This is the cycle
     while bool(patient_id):
         print("Start Trraining... \n")
@@ -225,12 +224,12 @@ def train_network(
                         lr_pen,
                         save_cp=True
                     )
-        # 
-        scores[round_]['train_dsc'].append(train_acc) 
+        #
+        scores[round_]['train_dsc'].append(train_acc)
 
         print("Init testing...")
         test_score = eval_net(net, test_loader, device, criterion)
-        scores[round_]['test_dsc'].append(test_score) 
+        scores[round_]['test_dsc'].append(test_score)
 
         print("Test score : {}".format(test_score))
 
@@ -279,7 +278,7 @@ def train_network(
     test_score = eval_net(net, test_loader, device, criterion)
     print("Final Test score : {}".format(test_score))
 
-    # 
+    #
     with open(os.path.join(output_dir, cfg["result_file"]), "w") as fp:
         json.dump(scores, fp)
 
@@ -298,11 +297,11 @@ def train_model(
     writer,
     global_step,
     batch_size,
-    reg, 
+    reg,
     lr_pen,
     save_cp=True,
 ):
-    
+
     for epoch in range(epochs):
         net.train()
         epoch_loss = 0
@@ -330,13 +329,13 @@ def train_model(
                 dsc = dice_coeff(masks_pred, true_masks)
 
                 total_dsc += dsc
-                # 
+                #
                 epoch_loss += loss.item()
                 pbar.set_postfix(**{"loss (batch)": loss.item()})
 
                 optimizer.zero_grad()
                 loss.backward()
-                
+
                 # Gradient Clipping
                 if reg > 0:
                     nn.utils.clip_grad_value_(net.parameters(), reg)
@@ -346,7 +345,7 @@ def train_model(
                 global_step += 1
             total_dsc /= counter
             all_total_dsc.append(total_dsc)
-        
+
         # Evaluate val score
         val_score, _ = eval_net(net, val_loader, device, criterion)
         scheduler.step(val_score)
@@ -360,7 +359,7 @@ def train_model(
         #         pass
         #     torch.save(net.state_dict(), os.path.join(dir_checkpoint, f"CP_epoch{epoch + 1}.pth"))
         #     logging.info(f"Checkpoint {epoch + 1} saved !")
-    
+
     return all_total_dsc
 
 
