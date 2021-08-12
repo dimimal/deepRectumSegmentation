@@ -17,7 +17,12 @@ Experimental results demonstrate the excellent performance of the proposed appro
 
 # Installation
 
-Create your venv and run pip install -r `requirements.txt`
+Create your own pipenv environment by running the following 2 commands:
+
+```bash
+pipenv shell
+pipenv install
+```
 
 
 ## Synthetic Data Generation
@@ -25,6 +30,12 @@ Create your venv and run pip install -r `requirements.txt`
 For the synthetic data generation please consider to use the source code provided in this repo:
 
 <a href="https://github.com/mahmoodlab/NucleiSegmentation">Synthetic Generation</a>
+
+## Training
+
+Place your dataset into folders splitting the images and masks and place the paths in the `train.py` script. Then pass the log file as
+an argument to your script to train your model.
+
 
 
 # Results

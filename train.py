@@ -1,22 +1,15 @@
-# !/usr/bin/env python3
-
-"""
-This is the main script that is used for the training of the U-Net model without active
-training. All you have to do is to pass the log file with the variables.
-"""
-
+#!/usr/bin/env python3
 
 import os
 import logging
 import torch
 import math
-import random
 import sys
 import numpy as np
 import json
 from collections import OrderedDict
-from models.unet import UNet
-from torch.utils.tensorboard import SummaryWriter
+from unet import UNet
+# from torch.utils.tensorboard import SummaryWriter
 from torch.functional import F
 from torch import optim
 import matplotlib.pyplot as plt
@@ -24,9 +17,10 @@ from torch import nn
 from kornia.losses import TverskyLoss
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from src.dataset import BaseData
-from src.dice_loss import dice_coeff, dice_loss, iou_metric
-from src.utils import (
+from dataset import BaseData
+# import segmentation_models_pytorch as smp
+from dice_loss import dice_coeff, dice_loss, iou_metric
+from utils import (
     get_annotated_pairs,
     get_pairs,
     load_data,
@@ -35,58 +29,76 @@ from src.utils import (
 )
 
 np.random.seed(0)
-random.seed(0)
 
-dir_images_CT = (
-    "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/images/**/*.png"
-)
-dir_images_MV = (
-    "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/images/**/**/*.png"
-)
-dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/**/*.png"
-dir_masks_MV = (
-    "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
-)
+# dir_images_CT = (
+#     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/images/**/*.png"
+# )
+# dir_images_MV = (
+#     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/images/**/**/*.png"
+# )
+# dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/**/*.png"
+# dir_masks_MV = (
+#     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
+# )
+# dir_out_masks = "/home/dimitris/SOTON/Msc_Thesis/Data/predicted_masks_256_1_channels"
+# dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/images/**/**/*.png"
+# dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/mask/**/**/*.png"
 
-N_test_patients = 1
-N_val_patients = 1
-N_train_patients = 5
+# dir_images_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/images/**/*.png"
+# dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/images/**/**/*.png"
+# dir_masks_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/mask/**/*.png"
+# dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/mask/**/**/*.png"
+# dir_out_masks = "/home/dimitris/SOTON/MSc_Project/predicted_masks_256_1_channels"
 
-dir_checkpoint = "./Checkpoints"
+
+# dir_checkpoint = "./Checkpoints"
 
 
 def train_network(
-    net,
-    device,
-    epochs=10,
-    batch_size=32,
-    lr=0.0001,
-    val_percent=0.1,
-    save_cp=True,
-    img_scale=1.0,
+    net, device, cfg, save_cp=True, img_scale=1.0,
 ):
+
+    N_test_patients = cfg["N_test"]
+    N_val_patients = cfg["N_val"]
+    N_train_patients = cfg["N_train"]
+    isAugment = bool(int(cfg["augmentation"]))
+    addSynthetic = bool(int(cfg["synthetic"]))
+
+    dir_images_MV = cfg["dir_images_mv"]
+    dir_masks_MV = cfg["dir_masks_mv"]
+    output_dir = cfg["output_dir"]
+    dir_out_masks = os.path.join(output_dir, cfg["dir_out_masks"])
+
+    epochs = cfg["epochs"]
+    batch_size = cfg["batch_size"]
+    lr = cfg["lr"]
+    lr_pen = float(cfg["lr_pen"])
+    reg = float(cfg["reg"])
 
     # Put all the train val test scores here for each epoch
     scores = {}
-    scores["train"] = []
+    scores["train_dsc"] = []
     scores["train_iou"] = []
-    scores["val"] = []
+    scores["val_dsc"] = []
+    scores["test_dsc"] = []
+    scores["train_loss"] = []
+    scores["val_loss"] = []
+    scores["test_loss"] = []
     scores["test"] = []
-
-    losses = {}
-    losses["train"] = []
-    losses["val"] = []
-    losses["test"] = []
 
     # Get pair paths
     image_paths = load_data(dir_images_MV)
-    mask_paths = load_data(dir_masks_MV)
+    # mask_paths = load_data(dir_masks_MV)
 
+    # TODO Do I need that???
+    # dir_images_MV = (os.sep).join(dir_images_MV.split(os.sep)[:-3])
     trimmed_masks_MV = (os.sep).join(dir_masks_MV.split(os.sep)[:-3])
 
+    # TODO The code blocks below should be functioned!
     # Split train val test
     # Add all the patient IDs here! It works as a buffer also!
     patient_id = OrderedDict()
+
     # Keep the patient folder codes in patient_id
     for image in image_paths:
         id_ = image.split(os.sep)[-3]
@@ -135,24 +147,48 @@ def train_network(
     val_images, val_masks = get_annotated_pairs(val_images, val_masks)
     test_images, test_masks = get_pairs(test_patients, trimmed_masks_MV)
     test_images, test_masks = get_annotated_pairs(test_images, test_masks)
+
     if net.n_channels > 1:
         train_images, train_masks = get_grouped_pairs(train_images, train_masks, n=3)
         val_images, val_masks = get_grouped_pairs(val_images, val_masks, n=3)
         test_images, test_masks = get_grouped_pairs(test_images, test_masks, n=3)
 
-        train_dataset = BaseData(train_images, train_masks, augmentation=False)
-        validation_dataset = BaseData(val_images, val_masks, augmentation=False)
-        test_dataset = BaseData(test_images, test_masks, augmentation=False)
+    # val_images, val_masks = get_pairs(val_patients, trimmed_masks_MV)
+    # test_images, test_masks = get_pairs(test_patients, trimmed_masks_MV)
+    # test_images, test_masks = get_annotated_pairs(test_images, test_masks)
 
-    else:
-        train_dataset = BaseData(train_images, train_masks, augmentation=False)
-        validation_dataset = BaseData(val_images, val_masks, augmentation=False)
-        test_dataset = BaseData(test_images, test_masks, augmentation=False)
+    # TODO Add a bias to the testing patient, This is for testing only
+    # bias_images = test_images[:150]
+    # bias_masks = test_masks[:150]
+    # test_images = test_images[150:]
+    # test_masks = test_masks[150:]
 
+    train_dataset = BaseData(
+        train_images, train_masks, augmentation=isAugment, n_channels=net.n_channels
+    )
+    validation_dataset = BaseData(
+        val_images, val_masks, augmentation=False, n_channels=net.n_channels
+    )
+    test_dataset = BaseData(
+        test_images, test_masks, augmentation=False, n_channels=net.n_channels
+    )
+    # n_train = len(train_dataset)
+
+    # Add synthetic images during training
+    if addSynthetic:
+        synth_images = sorted(load_data(cfg["synth_imgs"]))
+        synth_masks = sorted(load_data(cfg["synth_masks"]))
+        train_dataset.augment_set(synth_images, synth_masks)
+        print(synth_images[:2], synth_masks[:2])
+        logging.info("Adding synthetic data in training")
 
     n_train = len(train_dataset)
     n_val = len(validation_dataset)
     n_test = len(test_dataset)
+    print(n_train)
+    print(n_val)
+    print(n_test)
+    sys.exit(-1)
 
     train_loader = DataLoader(
         train_dataset,
@@ -162,12 +198,11 @@ def train_network(
         pin_memory=True,
     )
 
-    validation_dataset = dataset.setDataset(option="val")
-    test_dataset = dataset.setDataset(option="test")
-    validation_dataset = BaseData(
-        dir_images_CT, dir_images_MV, dir_masks_CT, dir_masks_MV, train=False
-    )
-
+    # validation_dataset = dataset.setDataset(option="val")
+    # test_dataset = dataset.setDataset(option="test")
+    # validation_dataset = BaseData(
+    #     dir_images_CT, dir_images_MV, dir_masks_CT, dir_masks_MV, train=False
+    # )
     n_train = len(train_dataset)
     n_val = len(validation_dataset)
     print(n_train)
@@ -194,6 +229,9 @@ def train_network(
 
     writer = SummaryWriter(comment=f"LR_{lr}_BS_{batch_size}_SCALE_{img_scale}")
     global_step = 0
+    best_val_score = 0
+    early_stop = 9
+    no_improve_counter = 0
 
     logging.info(
         f"""Starting training:
@@ -208,20 +246,18 @@ def train_network(
     """
     )
 
-    optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
-    # optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+    optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=lr_pen)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, "max", patience=2, verbose=True
     )
 
-    weights = torch.Tensor([0.0, 10.0]).to(device)
-    if net.n_classes > 1:
-        criterion_1 = nn.CrossEntropyLoss(weight=weights)
-        # criterion_1 = nn.CrossEntropyLoss()
-        criterion_2 = dice_loss
-    else:
-        criterion_1 = nn.BCEWithLogitsLoss(pos_weight=weights)
-        criterion_2 = TverskyLoss(alpha=0.7, beta=0.3, gamma=2.0)
+    # weights = torch.Tensor([0., 10.]).to(device)
+
+    # criterion_1 = nn.BCEWithLogitsLoss(pos_weight=weights)
+    if cfg["loss"] == "dsc":
+        criterion = dice_loss
+    elif cfg["loss"] == "tversky":
+        criterion = TverskyLoss(alpha=0.7, beta=0.3)
 
     for epoch in range(epochs):
         net.train()
@@ -241,18 +277,13 @@ def train_network(
                     f"but loaded images have {imgs.shape[1]} channels. Please check that "
                     "the images are loaded correctly."
                 )
-                # plt.imshow(imgs[0].squeeze().cpu().numpy(), cmap='gray')
-                # plt.show()
-                # plt.imshow(true_masks[0].squeeze().cpu().numpy(), cmap='gray')
-                # plt.show()
 
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 mask_type = torch.float32 if net.n_classes == 1 else torch.long
                 true_masks = true_masks.to(device=device, dtype=mask_type)
 
                 masks_pred = net(imgs)
-                loss_2 = criterion_2(masks_pred, true_masks)
-                loss = loss_2
+                loss = criterion(masks_pred, true_masks)
                 epoch_loss += loss.item()
 
                 train_dsc = dice_coeff(masks_pred, true_masks).item()
@@ -265,93 +296,75 @@ def train_network(
 
                 optimizer.zero_grad()
                 loss.backward()
-                # nn.utils.clip_grad_value_(net.parameters(), 0.1)
+                # Add clipping
+                if reg > 0:
+                    nn.utils.clip_grad_value_(net.parameters(), reg)
                 optimizer.step()
                 pbar.update(imgs.shape[0])
 
-                # This is for the tensorboard
-                global_step += 1
-                if global_step % (len(train_dataset) // (2 * batch_size)) == 0:
-                    for tag, value in net.named_parameters():
-                        tag = tag.replace(".", "/")
-                        writer.add_histogram(
-                            "weights/" + tag, value.data.cpu().numpy(), global_step
-                        )
-                        writer.add_histogram(
-                            "grads/" + tag, value.grad.data.cpu().numpy(), global_step
-                        )
-                    val_score, val_loss = eval_net(net, val_loader, device)
-                    scheduler.step(val_score)
-                    print(f"val score: {val_score}")
-                    logging.info(f"Validation dice score: {val_score}")
-                    writer.add_scalar(
-                        "learning_rate", optimizer.param_groups[0]["lr"], global_step
-                    )
-
-                    if net.n_classes > 1:
-                        logging.info("Validation Loss: {}".format(val_loss))
-                        writer.add_scalar("Loss/test", val_score, global_step)
-                    else:
-                        logging.info("Validation Dice Coeff: {}".format(val_score))
-                        writer.add_scalar("Dice/test", val_score, global_step)
-
-                    writer.add_images("images", imgs, global_step)
-                    if net.n_classes == 1:
-                        writer.add_images("masks/true", true_masks, global_step)
-                        writer.add_images(
-                            "masks/pred", torch.sigmoid(masks_pred) > 0.5, global_step
-                        )
-
-        if save_cp:
-            try:
-                os.mkdir(dir_checkpoint)
-                logging.info("Created checkpoint directory")
-            except OSError:
-                pass
-            torch.save(
-                net.state_dict(),
-                dir_checkpoint + f"CP_{net.n_channels}_epoch{epoch + 1}.pth",
-            )
-            logging.info(f"Checkpoint {epoch + 1} saved !")
-
-        val_score, val_loss = eval_net(net, val_loader, device)
+        val_score, val_loss = eval_net(net, val_loader, device, criterion)
         scheduler.step(val_score)
+
         print(f"val score: {val_score}")
         logging.info(f"Validation dice score: {val_score}")
-        print("Dice {}".format(total_train_dice_coeff / n_train))
-        scores["train"].append(total_train_dice_coeff / count)
+        print("Train Dice {}".format(total_train_dice_coeff / count))
+        scores["train_dsc"].append(total_train_dice_coeff / count)
         scores["train_iou"].append(total_train_iou / count)
-        scores["val"].append(val_score)
-        losses["train"].append(epoch_loss)
-        losses["val"].append(val_loss)
+        scores["val_dsc"].append(val_score)
+        scores["train_loss"].append(epoch_loss)
+        scores["val_loss"].append(val_loss)
 
         logging.info(f"Iou train score {total_train_iou / count}")
-        test_score, _ = infer_patient(net, test_loader, device, dir_out_masks)
+        test_score, _ = infer_patient(
+            net, test_loader, device, dir_out_masks, channels=net.n_channels
+        )
         print(f"infer test_score {test_score}")
 
         # Infer the test set
         scores["test"].append(test_score)
         logging.info(f"Test Score {test_score}")
 
-        train_dsc, _ = infer_patient(net, train_loader, device, "pred_train_masks_256")
+        # train_dsc, _ = infer_patient(
+        #     net, train_loader, device, "pred_train_masks_256", channels=net.n_channels
+        # )
         logging.info(f"Train DSC accuracy {train_dsc}")
-        # logging.info(f'Train DSC Loss {train_loss}')
+
+        if val_score > best_val_score:
+            best_val_score = val_score
+            no_improve_counter = 0
+            try:
+                os.mkdir(output_dir)
+                logging.info("Created checkpoint directory")
+            except OSError:
+                pass
+            torch.save(
+                net.state_dict(),
+                os.path.join(output_dir, f"CP_{net.n_channels}_bestmodel.pth"),
+            )
+            logging.info(f"Best Checkpoint {epoch + 1} saved !")
+        else:
+            no_improve_counter += 1
+
+            if no_improve_counter == early_stop:
+                logging.info(
+                    f"No validation improvement in epoch {epoch}. Train stoped!"
+                )
+                break
 
     writer.close()
 
-    with open("results.json", "w") as fp:
+    with open(os.path.join(output_dir, cfg["result_file"]), "w") as fp:
         json.dump(scores, fp)
-        json.dump(losses, fp)
 
 
-def eval_net(net, loader, device):
+def eval_net(net, loader, device, loss):
     """Evaluation without the densecrf with the dice coefficient"""
     net.eval()
     mask_type = torch.long
     n_val = len(loader)  # the number of batch
     tot = 0
     epoch_loss = 0
-    criterion = dice_loss
+    criterion = loss
     count = 0
     with tqdm(total=n_val, desc="Validation round", unit="batch", leave=False) as pbar:
         for batch in loader:
@@ -359,19 +372,12 @@ def eval_net(net, loader, device):
             imgs, true_masks = batch["image"], batch["mask"]
             imgs = imgs.to(device=device, dtype=torch.float32)
             true_masks = true_masks.to(device=device, dtype=mask_type)
-            # true_masks = true_masks / 255.
 
             with torch.no_grad():
                 mask_pred = net(imgs)
-                # mask_pred = F.softmax(mask_pred, dim=1)
                 loss = criterion(mask_pred, true_masks)
                 epoch_loss += loss.item()
 
-            # if net.n_classes > 1:
-            #     tot += F.cross_entropy(mask_pred, true_masks).item()
-            # else:
-            # pred = F.softmax(mask_pred, dim=1)
-            # pred = torch.argmax(mask_pred, dim=1).float()
             dsc = dice_coeff(mask_pred, true_masks).item()
             if math.isnan(dsc):
                 dsc = 0.0
@@ -384,7 +390,12 @@ def eval_net(net, loader, device):
 
 def main(args):
 
-    log_file = args[1]
+    with open(args[1], "r") as f:
+        cfg = json.load(f)
+    log_file = os.path.join(cfg["output_dir"], cfg["log_file"])
+
+    if not os.path.exists(cfg["output_dir"]):
+        os.makedirs(cfg["output_dir"])
 
     logging.basicConfig(
         filename=log_file,
@@ -395,38 +406,25 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device {device}")
 
-    # Change here to adapt to your data
-    # n_channels=3 for RGB images
-    # n_classes is the number of probabilities you want to get per pixel
-    #   - For 1 class and background, use n_classes=1
-    #   - For 2 classes, use n_classes=1
-    #   - For N > 2 classes, use n_classes=N
-    net = UNet(n_channels=3, n_classes=2, bilinear=True)
+    net = UNet(n_channels=cfg["n_channels"], n_classes=cfg["n_classes"], bilinear=True)
     logging.info(
         f"Network:\n"
         f"\t{net.n_channels} input channels\n"
         f"\t{net.n_classes} output channels (classes)\n"
     )
+
     # f'\t{'Bilinear' if {net.bilinear} else 'Transposed conv'} upscaling')
 
-    # if args.load:
-    #     net.load_state_dict(
-    #         torch.load(args.load, map_location=device)
-    #     )
-    #     logging.info(f'Model loaded from {args.load}')
+    if int(cfg["load"]):
+        if os.path.exists(cfg["weights"]):
+            net.load_state_dict(torch.load(cfg["weights"], map_location=device))
+            logging.info("Model loaded from {}".format(cfg["weights"]))
 
     net.to(device=device)
 
     try:
-        train_network(
-            net=net,
-            epochs=60,  # args.epochs,
-            batch_size=8,  # args.batchsize,
-            lr=0.0001,  # args.lr,
-            device=device,
-            img_scale=1,  # args.scale,
-            val_percent=1,
-        )  # args.val / 100)
+        train_network(net=net, device=device, cfg=cfg, save_cp=True, img_scale=1.0)
+
     except KeyboardInterrupt:
         torch.save(net.state_dict(), "INTERRUPTED.pth")
         logging.info("Saved interrupt")
