@@ -1,6 +1,8 @@
 # !/usr/bin/env python3
+
 """
-This is the main script that is used for the training of the U-Net model
+This is the main script that is used for the training of the U-Net model without active
+training. All you have to do is to pass the log file with the variables.
 """
 
 
@@ -13,7 +15,7 @@ import sys
 import numpy as np
 import json
 from collections import OrderedDict
-from unet import UNet
+from models.unet import UNet
 from torch.utils.tensorboard import SummaryWriter
 from torch.functional import F
 from torch import optim
@@ -22,10 +24,9 @@ from torch import nn
 from kornia.losses import TverskyLoss
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from dataset import BaseData
-import segmentation_models_pytorch as smp
-from dice_loss import dice_coeff, dice_loss, iou_metric
-from utils import (
+from src.dataset import BaseData
+from src.dice_loss import dice_coeff, dice_loss, iou_metric
+from src.utils import (
     get_annotated_pairs,
     get_pairs,
     load_data,
@@ -46,15 +47,6 @@ dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/*
 dir_masks_MV = (
     "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
 )
-
-# dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/images/**/**/*.png"
-# dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_1/mask/**/**/*.png"
-
-# dir_images_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/images/**/*.png"
-# dir_images_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/images/**/**/*.png"
-# dir_masks_CT = "/home/dimitris/SOTON/MSc_Project/data/CT_Plan/mask/**/*.png"
-# dir_masks_MV = "/home/dimitris/SOTON/MSc_Project/data/MVCT_Del/mask/**/**/*.png"
-# dir_out_masks = "/home/dimitris/SOTON/MSc_Project/predicted_masks_256_3_channels"
 
 N_test_patients = 1
 N_val_patients = 1

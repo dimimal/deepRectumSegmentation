@@ -34,24 +34,6 @@ class DiceCoeff(Function):
 
         return grad_input, grad_target
 
-
-# def dice_loss(input, target):
-#     """TODO: Docstring for dice_loss.
-#     :returns: TODO
-
-#     """
-#     eps = 1e-8
-#      # compute the actual dice score
-#     dims = (1, 2, 3)
-#     target = F.one_hot(target, 2)
-#     target = target.permute(0, 3, 1, 2)
-#     intersection = torch.sum(input * target, dims)
-#     union = torch.sum(input + target, dims)
-
-#     dsc = 2 * intersection / (union + eps)
-# return torch.mean(1. - dsc)
-
-
 def dice_loss(input, target):
     """
     input is a torch variable of size BatchxnclassesxHxW representing log probabilities for each class

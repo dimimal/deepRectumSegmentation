@@ -21,7 +21,7 @@ import numpy as np
 import torch
 from skimage import exposure
 from PIL import Image
-from dice_loss import dice_coeff, dice_loss
+from src.dice_loss import dice_coeff, dice_loss
 import matplotlib.pyplot as plt
 
 

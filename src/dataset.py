@@ -7,7 +7,6 @@ import numpy as np
 import glob
 import torch
 from torch.utils.data import Dataset
-from utils import load_data
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 from scipy import ndimage

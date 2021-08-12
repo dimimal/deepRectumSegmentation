@@ -11,24 +11,23 @@ import torch
 import sys
 from PIL import Image
 import numpy as np
-from unet import UNet
+from models.unet import UNet
 from torch.utils.tensorboard import SummaryWriter
 from torch.functional import F
 from torch import optim
 from torch import nn
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from dataset import BaseData
-import segmentation_models_pytorch as smp
-from dice_loss import dice_coeff, DiceCoeff, dice_coeff_2
-from utils import load_data, get_annotated_pairs, get_pairs
+from src.dataset import BaseData
+from src.dice_loss import dice_coeff, DiceCoeff
+from src.utils import load_data, get_annotated_pairs, get_pairs
 
 # These are the paths being used for training
-# dir_images_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/images/**/*.png"
-# dir_images_MV = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/images/**/**/*.png"
-# dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/**/*.png"
-# dir_masks_MV = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
-# dir_out_masks = "/home/dimitris/SOTON_COURSES/Msc_Thesis/predicted_masks"
+dir_images_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/images/**/*.png"
+dir_images_MV = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/images/**/**/*.png"
+dir_masks_CT = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/CT_Plan/mask/**/*.png"
+dir_masks_MV = "/home/dimitris/SOTON_COURSES/Msc_Thesis/Data/data/MVCT_Del/mask/**/**/*.png"
+dir_out_masks = "/home/dimitris/SOTON_COURSES/Msc_Thesis/predicted_masks"
 
 
 dir_checkpoint = "./Checkpoints"
